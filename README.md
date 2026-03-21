@@ -2,7 +2,12 @@
 This project was made as a part of me achieving my Engineering degree in Applied Computer Science.
 
 # Used Resources
-This project was made with Python, using following libraries:
+
+## Language
+This project was made with Python.
+
+## Libraries
+Following libraries were used:
 - 
 
 # How to use
