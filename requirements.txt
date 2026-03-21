@@ -1,5 +1,7 @@
-mesa>=1.1.0
-matplotlib>=3.7
-numpy>=1.24
-pandas>=2.0
-seaborn>=0.12
+mesa
+matplotlib
+numpy
+pandas
+seaborn
+pre-commit
+ruff
