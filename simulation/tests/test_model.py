@@ -6,7 +6,7 @@ from simulation.model import BattlefieldModel
 
 @pytest.fixture
 def basic_board() -> np.ndarray:
-	"""Zwraca przykładową, pustą planszę 10x10."""
+	"""Returns an example empty 10x10 board."""
 	return np.zeros((10, 10), dtype=int)
 
 

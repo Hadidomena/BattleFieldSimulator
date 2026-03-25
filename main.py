@@ -19,7 +19,7 @@ def load_board(path: str) -> np.ndarray:
 
 def main() -> None:
 	parser = argparse.ArgumentParser(
-		description=("Symulacja pola walki — minimalny szkielet"),
+		description=("Battlefield simulation - minimal skeleton"),
 	)
 
 	parser.add_argument(
@@ -27,7 +27,7 @@ def main() -> None:
 		"-m",
 		type=str,
 		default=None,
-		help=("Ścieżka do pliku z planszą (CSV lub whitespace delimited)"),
+		help=("Path to the board file (CSV or whitespace delimited)"),
 	)
 
 	args = parser.parse_args()
@@ -38,19 +38,18 @@ def main() -> None:
 		board = np.zeros((10, 10), dtype=int)
 		board[2:4, 2:4] = 1
 
-	print(f"Plansza wczytana (shape={board.shape}):")
+	print(f"Loaded board (shape={board.shape}):")
 	print(board)
 
-	print("\n--- Inicjalizacja Modelu Środowiska ---")
+	print("\n--- Initializing Environment Model ---")
 	model = BattlefieldModel(board)
 
-	# Uruchamiamy symulację na zadaną ilość tur (np. 3 tury)
 	num_steps = 3
-	print(f"Uruchamiam symulację na {num_steps} tury...\n")
+	print(f"Running simulation for {num_steps} steps...\n")
 	for i in range(num_steps):
 		model.step()
 
-	print("\n=== Wyniki (Moduł Analityczny) ===")
+	print("\n=== Results (Analytics Module) ===")
 	df = model.datacollector.get_model_vars_dataframe()
 	print(df)
 
