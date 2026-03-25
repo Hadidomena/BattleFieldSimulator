@@ -3,11 +3,11 @@ repos:
     hooks:
       - id: ruff
         name: ruff-check
-        entry: ruff check --fix
+        entry: ruff check --fix --unsafe-fixes
         language: system
         types: [python]
         require_serial: true
-        stages: [commit]
+        stages: [pre-commit]
         
       - id: ruff-format
         name: ruff-format
