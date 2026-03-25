@@ -1,0 +1,35 @@
+name: Model Simulation Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Zezwól na Checkout Repozytorium
+      uses: actions/checkout@v4
+
+    - name: Konfiguruj Pythona
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+
+    - name: Instalacja Zależności
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov networkx
+
+    - name: Uruchomienie Pytest
+      env:
+        PYTHONPATH: .
+      run: |
+        pytest simulation/tests/ -v --cov=simulation
