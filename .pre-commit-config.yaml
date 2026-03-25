@@ -3,15 +3,15 @@ repos:
     hooks:
       - id: ruff
         name: ruff-check
-        entry: ruff check --fix --unsafe-fixes
+        entry: venv/Scripts/ruff.exe check --fix --unsafe-fixes
         language: system
         types: [python]
         require_serial: true
         stages: [pre-commit]
-        
+
       - id: ruff-format
         name: ruff-format
-        entry: ruff format
+        entry: venv/Scripts/ruff.exe format
         language: system
         types: [python]
         require_serial: true
@@ -19,7 +19,7 @@ repos:
 
       - id: python-compile
         name: python-compile
-        entry: python -m py_compile
+        entry: venv/Scripts/python.exe -m py_compile
         language: system
         types: [python]
         stages: [pre-commit]
