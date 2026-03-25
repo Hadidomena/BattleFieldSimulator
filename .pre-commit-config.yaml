@@ -1,15 +1,25 @@
 repos:
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.15.7
-    hooks:
-      - id: ruff
-        args: ["--fix"]
-        stages: [pre-commit]
-
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.15.7
+  - repo: local
     hooks:
       - id: ruff
         name: ruff-check
-        args: []
-        stages: [pre-push]
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
+        stages: [commit]
+        
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff format
+        language: system
+        types: [python]
+        require_serial: true
+        stages: [pre-commit]
+
+      - id: python-compile
+        name: python-compile
+        entry: python -m py_compile
+        language: system
+        types: [python]
+        stages: [pre-commit]
