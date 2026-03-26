@@ -22,9 +22,25 @@ class CombatAgent(mesa.Agent):
 		if self.hp <= 0:
 			return
 
-		# TODO: In the future algorithms for movement and decision taking
+		self.move()
+
 		current_step = self.model.steps
 		print(
 			f"[Turn {current_step}] Agent {self.unique_id} "
 			f"({self.team}) in {self.pos} ready. HP: {self.hp}"
 		)
+
+	def move(self) -> None:
+		possible_steps = self.model.grid.get_neighborhood(
+			self.pos, moore=True, include_center=False
+		)
+		if hasattr(self.model, "terrain"):
+			valid_steps = [
+				pos for pos in possible_steps if self.model.terrain[pos[1], pos[0]] == 0
+			]
+		else:
+			valid_steps = possible_steps
+
+		if valid_steps:
+			new_position = self.random.choice(valid_steps)
+			self.model.grid.move_agent(self, new_position)

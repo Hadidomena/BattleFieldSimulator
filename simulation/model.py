@@ -9,6 +9,7 @@ class BattlefieldModel(mesa.Model):
 		super().__init__()
 		self.width = board.shape[1]
 		self.height = board.shape[0]
+		self.terrain = board
 		self.grid = mesa.space.MultiGrid(self.width, self.height, torus=False)
 		self.datacollector = mesa.DataCollector(
 			model_reporters={
