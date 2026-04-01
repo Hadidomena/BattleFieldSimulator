@@ -10,3 +10,6 @@ ignore = ["W191"]
 
 [tool.ruff.format]
 indent-style = "tab"
+
+[tool.coverage.run]
+omit = ["simulation/tests/*"]
