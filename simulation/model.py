@@ -35,9 +35,9 @@ class BattlefieldModel(mesa.Model):
 		TODO: Terrain
 		"""
 		blue_agent = CombatAgent(self, team="Blue")
-		self.grid.place_agent(blue_agent, (0, 0))
+		self.grid.place_agent(blue_agent, (3, 1))
 		red_agent = CombatAgent(self, team="Red")
-		target_pos = (self.width - 1, self.height - 1)
+		target_pos = (3, 5)
 		self.grid.place_agent(red_agent, target_pos)
 
 	def step(self) -> None:
