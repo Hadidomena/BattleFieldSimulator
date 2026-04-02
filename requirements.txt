@@ -1,7 +1,10 @@
 mesa
+networkx
 matplotlib
 numpy
 pandas
 seaborn
 pre-commit
 ruff
+pytest
+pytest-cov
