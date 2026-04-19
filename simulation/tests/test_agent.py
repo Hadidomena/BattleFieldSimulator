@@ -33,6 +33,8 @@ def test_combat_agent_initialization() -> None:
 	assert agent.detection_threshold == 0.15
 	assert agent.facing_direction == (0, 1)
 	assert agent.mobility == 3
+	assert agent.navigation_algorithm == "a_star"
+	assert agent.allow_diagonal_navigation is False
 
 
 def test_combat_agent_step_alive() -> None:
@@ -104,3 +106,28 @@ def test_get_visible_enemies_rejects_enemy_behind_obstacle() -> None:
 
 	visible = blue.get_visible_enemies()
 	assert red not in visible
+
+
+def test_move_uses_pathfinding_to_bypass_obstacle_wall() -> None:
+	board = np.zeros((7, 7), dtype=int)
+	board[2, 2] = 1
+	board[3, 2] = 1
+	board[4, 2] = 1
+	board[5, 2] = 1
+
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (1, 3))
+	model.grid.move_agent(red, (5, 3))
+
+	blue.mobility = 1
+	blue.navigation_algorithm = "a_star"
+	blue.allow_diagonal_navigation = False
+
+	blue.move()
+
+	assert blue.pos == (1, 2)
+	assert blue.current_path[0] == (1, 3)
+	assert blue.current_path[-1] == (5, 3)

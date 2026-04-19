@@ -1,6 +1,14 @@
 import numpy as np
 
-from simulation.utils import detection_score, has_line_of_sight, is_in_vision_cone
+from simulation.utils import (
+	a_star_path,
+	detection_score,
+	dijkstra_path,
+	find_path,
+	has_line_of_sight,
+	is_in_vision_cone,
+	path_total_cost,
+)
 
 
 def test_has_line_of_sight_clear() -> None:
@@ -46,3 +54,46 @@ def test_detection_score_zero_without_los() -> None:
 	terrain[3, 2] = 1
 	score = detection_score((2, 2), (2, 5), terrain, 6, (0, 1), 120.0)
 	assert score == 0.0
+
+
+def test_a_star_path_avoids_obstacles() -> None:
+	terrain = np.zeros((7, 7), dtype=int)
+	terrain[2, 2] = 1
+	terrain[3, 2] = 1
+	terrain[4, 2] = 1
+
+	path = a_star_path((1, 3), (5, 3), terrain, allow_diagonal=False)
+
+	assert path[0] == (1, 3)
+	assert path[-1] == (5, 3)
+	assert (2, 3) not in path
+
+
+def test_dijkstra_path_prefers_lower_topography_cost() -> None:
+	terrain = np.zeros((5, 5), dtype=int)
+	terrain[2, 1] = 6
+	terrain[2, 2] = 6
+	terrain[2, 3] = 6
+
+	path = dijkstra_path((0, 2), (4, 2), terrain, allow_diagonal=False)
+
+	assert path[0] == (0, 2)
+	assert path[-1] == (4, 2)
+	assert (1, 2) not in path
+	assert (2, 2) not in path
+	assert (3, 2) not in path
+
+	direct_path = [(0, 2), (1, 2), (2, 2), (3, 2), (4, 2)]
+	assert path_total_cost(path, terrain) < path_total_cost(direct_path, terrain)
+
+
+def test_find_path_returns_empty_for_unreachable_goal() -> None:
+	terrain = np.zeros((5, 5), dtype=int)
+	terrain[2, 1] = 1
+	terrain[2, 2] = 1
+	terrain[2, 3] = 1
+	terrain[1, 2] = 1
+	terrain[3, 2] = 1
+
+	path = find_path((0, 2), (2, 2), terrain, algorithm="a_star")
+	assert path == []

@@ -1,17 +1,242 @@
+import heapq
 import math
 
 import numpy as np
 
+type Position = tuple[int, int]
 
-def is_position_in_bounds(pos: tuple[int, int], terrain: np.ndarray) -> bool:
+
+def is_position_in_bounds(pos: Position, terrain: np.ndarray) -> bool:
 	x, y = pos
 	return 0 <= y < terrain.shape[0] and 0 <= x < terrain.shape[1]
 
 
-def euclidean_distance(pos1: tuple[int, int], pos2: tuple[int, int]) -> float:
+def euclidean_distance(pos1: Position, pos2: Position) -> float:
 	dx = pos1[0] - pos2[0]
 	dy = pos1[1] - pos2[1]
 	return math.hypot(dx, dy)
+
+
+def terrain_movement_cost(tile_value: int) -> float:
+	if tile_value == 1:
+		return math.inf
+	if tile_value <= 0:
+		return 1.0
+	return float(tile_value)
+
+
+def is_walkable(pos: Position, terrain: np.ndarray) -> bool:
+	if not is_position_in_bounds(pos, terrain):
+		return False
+	x, y = pos
+	return int(terrain[y, x]) != 1
+
+
+def get_walkable_neighbors(
+	pos: Position,
+	terrain: np.ndarray,
+	allow_diagonal: bool = False,
+) -> list[Position]:
+	x, y = pos
+	directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+	if allow_diagonal:
+		directions.extend([(-1, -1), (-1, 1), (1, -1), (1, 1)])
+
+	neighbors: list[Position] = []
+	for dx, dy in directions:
+		candidate = (x + dx, y + dy)
+		if not is_walkable(candidate, terrain):
+			continue
+
+		if allow_diagonal and dx != 0 and dy != 0:
+			horizontal = (x + dx, y)
+			vertical = (x, y + dy)
+			if not is_walkable(horizontal, terrain):
+				continue
+			if not is_walkable(vertical, terrain):
+				continue
+
+		neighbors.append(candidate)
+
+	return neighbors
+
+
+def movement_step_cost(
+	current: Position,
+	target: Position,
+	terrain: np.ndarray,
+) -> float:
+	tile_cost = terrain_movement_cost(int(terrain[target[1], target[0]]))
+	if math.isinf(tile_cost):
+		return math.inf
+
+	is_diagonal = current[0] != target[0] and current[1] != target[1]
+	if is_diagonal:
+		return tile_cost * math.sqrt(2)
+	return tile_cost
+
+
+def _minimum_traversal_cost(terrain: np.ndarray) -> float:
+	walkable_values = terrain[terrain != 1]
+	if walkable_values.size == 0:
+		return 1.0
+	if np.any(walkable_values <= 0):
+		return 1.0
+	return float(np.min(walkable_values))
+
+
+def heuristic_cost(
+	start: Position,
+	goal: Position,
+	min_tile_cost: float,
+	allow_diagonal: bool,
+) -> float:
+	dx = abs(start[0] - goal[0])
+	dy = abs(start[1] - goal[1])
+
+	if allow_diagonal:
+		d = min_tile_cost
+		d2 = min_tile_cost * math.sqrt(2)
+		return d * (dx + dy) + (d2 - 2 * d) * min(dx, dy)
+
+	return min_tile_cost * (dx + dy)
+
+
+def reconstruct_path(
+	came_from: dict[Position, Position],
+	current: Position,
+) -> list[Position]:
+	path = [current]
+	while current in came_from:
+		current = came_from[current]
+		path.append(current)
+	path.reverse()
+	return path
+
+
+def a_star_path(
+	start: Position,
+	goal: Position,
+	terrain: np.ndarray,
+	allow_diagonal: bool = False,
+) -> list[Position]:
+	if not is_walkable(start, terrain) or not is_walkable(goal, terrain):
+		return []
+	if start == goal:
+		return [start]
+
+	min_tile_cost = _minimum_traversal_cost(terrain)
+	open_heap: list[tuple[float, Position]] = []
+	heapq.heappush(
+		open_heap,
+		(
+			heuristic_cost(
+				start=start,
+				goal=goal,
+				min_tile_cost=min_tile_cost,
+				allow_diagonal=allow_diagonal,
+			),
+			start,
+		),
+	)
+
+	came_from: dict[Position, Position] = {}
+	g_score: dict[Position, float] = {start: 0.0}
+	closed: set[Position] = set()
+
+	while open_heap:
+		_, current = heapq.heappop(open_heap)
+		if current in closed:
+			continue
+		if current == goal:
+			return reconstruct_path(came_from, current)
+
+		closed.add(current)
+		for neighbor in get_walkable_neighbors(
+			pos=current,
+			terrain=terrain,
+			allow_diagonal=allow_diagonal,
+		):
+			tentative = g_score[current] + movement_step_cost(current, neighbor, terrain)
+			if tentative >= g_score.get(neighbor, math.inf):
+				continue
+
+			came_from[neighbor] = current
+			g_score[neighbor] = tentative
+			estimated_total = tentative + heuristic_cost(
+				start=neighbor,
+				goal=goal,
+				min_tile_cost=min_tile_cost,
+				allow_diagonal=allow_diagonal,
+			)
+			heapq.heappush(open_heap, (estimated_total, neighbor))
+
+	return []
+
+
+def dijkstra_path(
+	start: Position,
+	goal: Position,
+	terrain: np.ndarray,
+	allow_diagonal: bool = False,
+) -> list[Position]:
+	if not is_walkable(start, terrain) or not is_walkable(goal, terrain):
+		return []
+	if start == goal:
+		return [start]
+
+	open_heap: list[tuple[float, Position]] = [(0.0, start)]
+	came_from: dict[Position, Position] = {}
+	distance: dict[Position, float] = {start: 0.0}
+
+	while open_heap:
+		current_distance, current = heapq.heappop(open_heap)
+		if current_distance > distance.get(current, math.inf):
+			continue
+		if current == goal:
+			return reconstruct_path(came_from, current)
+
+		for neighbor in get_walkable_neighbors(
+			pos=current,
+			terrain=terrain,
+			allow_diagonal=allow_diagonal,
+		):
+			new_distance = current_distance + movement_step_cost(
+				current, neighbor, terrain
+			)
+			if new_distance >= distance.get(neighbor, math.inf):
+				continue
+
+			distance[neighbor] = new_distance
+			came_from[neighbor] = current
+			heapq.heappush(open_heap, (new_distance, neighbor))
+
+	return []
+
+
+def path_total_cost(path: list[Position], terrain: np.ndarray) -> float:
+	if len(path) <= 1:
+		return 0.0
+
+	cost = 0.0
+	for index in range(1, len(path)):
+		cost += movement_step_cost(path[index - 1], path[index], terrain)
+	return cost
+
+
+def find_path(
+	start: Position,
+	goal: Position,
+	terrain: np.ndarray,
+	algorithm: str = "a_star",
+	allow_diagonal: bool = False,
+) -> list[Position]:
+	if algorithm == "a_star":
+		return a_star_path(start, goal, terrain, allow_diagonal=allow_diagonal)
+	if algorithm == "dijkstra":
+		return dijkstra_path(start, goal, terrain, allow_diagonal=allow_diagonal)
+
+	raise ValueError(f"Unsupported pathfinding algorithm: {algorithm}")
 
 
 def bresenham_line(x0: int, y0: int, x1: int, y1: int):
