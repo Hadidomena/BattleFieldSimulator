@@ -30,6 +30,13 @@ def main() -> None:
 		help=("Path to the board file (CSV or whitespace delimited)"),
 	)
 
+	parser.add_argument(
+		"--steps",
+		"-s",
+		type=int,
+		default=-1,
+		help=("Number of steps to run the simulation for"),
+	)
 	args = parser.parse_args()
 
 	if args.map:
@@ -44,7 +51,13 @@ def main() -> None:
 	print("\n--- Initializing Environment Model ---")
 	model = BattlefieldModel(board)
 
-	num_steps = 3
+	args.steps = (
+		input("How many steps should the simulation run for? ")
+		if args.steps == -1
+		else args.steps
+	)
+	num_steps = int(args.steps)
+
 	print(f"Running simulation for {num_steps} steps...\n")
 	for i in range(num_steps):
 		model.step()
