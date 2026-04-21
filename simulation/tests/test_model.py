@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from simulation.agent import CombatAgent
 from simulation.model import BattlefieldModel
 
 
@@ -30,3 +31,27 @@ def test_model_step(basic_board: np.ndarray) -> None:
 	assert len(df) == 2
 	assert df["Alive_Blue"].iloc[0] == 1
 	assert df["Alive_Red"].iloc[0] == 1
+
+
+def test_model_collects_combat_stats(basic_board: np.ndarray) -> None:
+	model = BattlefieldModel(basic_board)
+	blue = next(
+		a for a in model.agents if isinstance(a, CombatAgent) and a.team == "Blue"
+	)
+	red = next(a for a in model.agents if isinstance(a, CombatAgent) and a.team == "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 2))
+
+	blue.accuracy = 1.0
+	blue.attack_range = 4.0
+	blue.firepower = 50
+	red.hp = 10
+
+	blue.attack(red)
+
+	assert model.shots_by_team["Blue"] == 1
+	assert model.hits_by_team["Blue"] == 1
+	assert model.damage_by_team["Blue"] > 0
+	assert model.kills_by_team["Blue"] == 1
+	assert model.eliminated_by_team["Red"] == 1

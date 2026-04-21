@@ -29,8 +29,11 @@ def test_combat_agent_initialization() -> None:
 	assert agent.hp == 120
 	assert agent.firepower == 15
 	assert agent.observation_range == 6
+	assert agent.attack_range == 3.0
 	assert agent.view_angle_deg == 120.0
 	assert agent.detection_threshold == 0.15
+	assert agent.accuracy == 0.75
+	assert agent.armor == 0.10
 	assert agent.facing_direction == (0, 1)
 	assert agent.mobility == 3
 	assert agent.navigation_algorithm == "a_star"
@@ -131,3 +134,48 @@ def test_move_uses_pathfinding_to_bypass_obstacle_wall() -> None:
 	assert blue.pos == (1, 2)
 	assert blue.current_path[0] == (1, 3)
 	assert blue.current_path[-1] == (5, 3)
+
+
+def test_attack_reduces_enemy_hp() -> None:
+	board = np.zeros((6, 6), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 2))
+
+	blue.attack_range = 4.0
+	blue.accuracy = 1.0
+	blue.firepower = 18
+	red.hp = 40
+
+	hit = blue.attack(red)
+
+	assert hit is True
+	assert red.hp < 40
+	assert model.damage_by_team["Blue"] > 0
+
+
+def test_attack_can_eliminate_and_remove_agent() -> None:
+	board = np.zeros((6, 6), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 2))
+
+	blue.attack_range = 4.0
+	blue.accuracy = 1.0
+	blue.firepower = 50
+	red.hp = 10
+
+	hit = blue.attack(red)
+
+	assert hit is True
+	assert red.hp == 0
+	assert red.pos is None
+	assert red not in list(model.agents)
+	assert model.eliminated_by_team["Red"] == 1
+	assert model.kills_by_team["Blue"] == 1

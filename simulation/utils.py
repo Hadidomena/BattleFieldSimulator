@@ -239,6 +239,76 @@ def find_path(
 	raise ValueError(f"Unsupported pathfinding algorithm: {algorithm}")
 
 
+def clamp(value: float, minimum: float, maximum: float) -> float:
+	return max(minimum, min(value, maximum))
+
+
+def cover_ratio(
+	position: Position,
+	terrain: np.ndarray,
+	include_diagonal: bool = True,
+) -> float:
+	x, y = position
+	neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+	if include_diagonal:
+		neighbors.extend([(-1, -1), (-1, 1), (1, -1), (1, 1)])
+
+	blocked = 0
+	considered = 0
+	for dx, dy in neighbors:
+		nx = x + dx
+		ny = y + dy
+		if not is_position_in_bounds((nx, ny), terrain):
+			continue
+		considered += 1
+		if terrain[ny, nx] == 1:
+			blocked += 1
+
+	if considered == 0:
+		return 0.0
+	return blocked / considered
+
+
+def hit_probability(
+	distance: float,
+	attack_range: float,
+	base_accuracy: float,
+	cover: float,
+) -> float:
+	if attack_range <= 0:
+		return 0.0
+	if distance > attack_range:
+		return 0.0
+
+	normalized_distance = clamp(distance / attack_range, 0.0, 1.0)
+	distance_penalty = 0.45 * normalized_distance
+	cover_penalty = 0.35 * clamp(cover, 0.0, 1.0)
+
+	chance = base_accuracy - distance_penalty - cover_penalty
+	return clamp(chance, 0.0, 1.0)
+
+
+def calculate_damage(
+	firepower: float,
+	distance: float,
+	attack_range: float,
+	cover: float,
+	armor: float = 0.0,
+) -> int:
+	if firepower <= 0:
+		return 0
+	if attack_range <= 0:
+		return 0
+
+	normalized_distance = clamp(distance / attack_range, 0.0, 1.0)
+	range_factor = 1.0 - (0.50 * normalized_distance)
+	cover_factor = 1.0 - (0.40 * clamp(cover, 0.0, 1.0))
+	armor_factor = 1.0 - clamp(armor, 0.0, 0.90)
+
+	raw_damage = firepower * range_factor * cover_factor * armor_factor
+	return max(1, int(round(raw_damage)))
+
+
 def bresenham_line(x0: int, y0: int, x1: int, y1: int):
 	dx = abs(x1 - x0)
 	dy = abs(y1 - y0)

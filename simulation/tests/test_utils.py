@@ -2,10 +2,13 @@ import numpy as np
 
 from simulation.utils import (
 	a_star_path,
+	calculate_damage,
+	cover_ratio,
 	detection_score,
 	dijkstra_path,
 	find_path,
 	has_line_of_sight,
+	hit_probability,
 	is_in_vision_cone,
 	path_total_cost,
 )
@@ -97,3 +100,33 @@ def test_find_path_returns_empty_for_unreachable_goal() -> None:
 
 	path = find_path((0, 2), (2, 2), terrain, algorithm="a_star")
 	assert path == []
+
+
+def test_cover_ratio_increases_near_obstacles() -> None:
+	terrain = np.zeros((7, 7), dtype=int)
+	terrain[2, 2] = 1
+	terrain[2, 3] = 1
+	terrain[2, 4] = 1
+
+	low_cover = cover_ratio((1, 1), terrain)
+	high_cover = cover_ratio((3, 3), terrain)
+
+	assert high_cover > low_cover
+
+
+def test_hit_probability_decreases_with_distance_and_cover() -> None:
+	close_open = hit_probability(1.0, 5.0, 0.8, 0.0)
+	far_open = hit_probability(5.0, 5.0, 0.8, 0.0)
+	close_covered = hit_probability(1.0, 5.0, 0.8, 0.8)
+
+	assert close_open > far_open
+	assert close_open > close_covered
+
+
+def test_calculate_damage_reduced_by_cover_and_armor() -> None:
+	base = calculate_damage(20, 1.0, 5.0, 0.0, 0.0)
+	covered = calculate_damage(20, 1.0, 5.0, 1.0, 0.0)
+	armored = calculate_damage(20, 1.0, 5.0, 0.0, 0.5)
+
+	assert base > covered
+	assert base > armored
