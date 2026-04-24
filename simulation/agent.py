@@ -297,3 +297,165 @@ class CombatAgent(mesa.Agent):
 		dy = direction_step[1] - old_position[1]
 		if (dx, dy) != (0, 0):
 			self.facing_direction = (dx, dy)
+
+
+class InfantrySquad(CombatAgent):
+	"""
+	Basic squad
+	"""
+
+	def __init__(
+		self,
+		model: mesa.Model,
+		team: str,
+		hp: int = 100,
+		firepower: int = 10,
+		observation_range: int = 6,
+		attack_range: float = 4.0,
+		view_angle_deg: float = 120.0,
+		detection_threshold: float = 0.15,
+		accuracy: float = 0.70,
+		armor: float = 0.10,
+		facing_direction: tuple[int, int] = (0, 1),
+		mobility: int = 2,
+		navigation_algorithm: str = "a_star",
+		allow_diagonal_navigation: bool = False,
+	) -> None:
+		super().__init__(
+			model,
+			team,
+			hp,
+			firepower,
+			observation_range,
+			attack_range,
+			view_angle_deg,
+			detection_threshold,
+			accuracy,
+			armor,
+			facing_direction,
+			mobility,
+			navigation_algorithm,
+			allow_diagonal_navigation,
+		)
+
+
+class ReconSquad(CombatAgent):
+	"""
+	Recon Squad which is worse in sustained contact,
+	but faster
+	"""
+
+	def __init__(
+		self,
+		model: mesa.Model,
+		team: str,
+		hp: int = 80,
+		firepower: int = 8,
+		observation_range: int = 12,
+		attack_range: float = 5.0,
+		view_angle_deg: float = 180.0,
+		detection_threshold: float = 0.08,
+		accuracy: float = 0.75,
+		armor: float = 0.05,
+		facing_direction: tuple[int, int] = (0, 1),
+		mobility: int = 3,
+		navigation_algorithm: str = "a_star",
+		allow_diagonal_navigation: bool = False,
+	) -> None:
+		super().__init__(
+			model,
+			team,
+			hp,
+			firepower,
+			observation_range,
+			attack_range,
+			view_angle_deg,
+			detection_threshold,
+			accuracy,
+			armor,
+			facing_direction,
+			mobility,
+			navigation_algorithm,
+			allow_diagonal_navigation,
+		)
+
+
+class MechanizedInfantry(CombatAgent):
+	"""
+	more mobile and durable than InfantrySquad
+	TODO: maybe in futre implement more of weaknesses
+	"""
+
+	def __init__(
+		self,
+		model: mesa.Model,
+		team: str,
+		hp: int = 200,
+		firepower: int = 20,
+		observation_range: int = 8,
+		attack_range: float = 8.0,
+		view_angle_deg: float = 120.0,
+		detection_threshold: float = 0.15,
+		accuracy: float = 0.80,
+		armor: float = 0.30,
+		facing_direction: tuple[int, int] = (0, 1),
+		mobility: int = 4,
+		navigation_algorithm: str = "a_star",
+		allow_diagonal_navigation: bool = False,
+	) -> None:
+		super().__init__(
+			model,
+			team,
+			hp,
+			firepower,
+			observation_range,
+			attack_range,
+			view_angle_deg,
+			detection_threshold,
+			accuracy,
+			armor,
+			facing_direction,
+			mobility,
+			navigation_algorithm,
+			allow_diagonal_navigation,
+		)
+
+
+class MainBattleTank(CombatAgent):
+	"""
+	Tank, more durable but slower than MechanizedInfantry
+	"""
+
+	def __init__(
+		self,
+		model: mesa.Model,
+		team: str,
+		hp: int = 400,
+		firepower: int = 40,
+		observation_range: int = 10,
+		attack_range: float = 12.0,
+		view_angle_deg: float = 90.0,
+		detection_threshold: float = 0.10,
+		accuracy: float = 0.85,
+		armor: float = 0.60,
+		facing_direction: tuple[int, int] = (0, 1),
+		mobility: int = 3,
+		navigation_algorithm: str = "a_star",
+		allow_diagonal_navigation: bool = False,
+	) -> None:
+		super().__init__(
+			model,
+			team,
+			hp,
+			firepower,
+			observation_range,
+			attack_range,
+			view_angle_deg,
+			detection_threshold,
+			accuracy,
+			armor,
+			facing_direction,
+			mobility,
+			navigation_algorithm,
+			allow_diagonal_navigation,
+		)
