@@ -5,11 +5,22 @@ from simulation.agent import CombatAgent
 
 
 class BattlefieldModel(mesa.Model):
-	def __init__(self, board: np.ndarray) -> None:
+	def __init__(
+		self,
+		board: np.ndarray,
+		blue_unit_class: type[CombatAgent] = CombatAgent,
+		red_unit_class: type[CombatAgent] = CombatAgent,
+		blue_unit_kwargs: dict | None = None,
+		red_unit_kwargs: dict | None = None,
+	) -> None:
 		super().__init__()
 		self.width = board.shape[1]
 		self.height = board.shape[0]
 		self.terrain = board
+		self.blue_unit_class = blue_unit_class
+		self.red_unit_class = red_unit_class
+		self.blue_unit_kwargs = blue_unit_kwargs or {}
+		self.red_unit_kwargs = red_unit_kwargs or {}
 		self.grid = mesa.space.MultiGrid(self.width, self.height, torus=False)
 		self.eliminated_by_team = {"Blue": 0, "Red": 0}
 		self.kills_by_team = {"Blue": 0, "Red": 0}
@@ -45,11 +56,32 @@ class BattlefieldModel(mesa.Model):
 		"""
 		TODO: Terrain
 		"""
-		blue_agent = CombatAgent(self, team="Blue")
+		blue_agent = self.blue_unit_class(
+			self,
+			team="Blue",
+			**self.blue_unit_kwargs,
+		)
 		self.grid.place_agent(blue_agent, (3, 1))
-		red_agent = CombatAgent(self, team="Red")
+		red_agent = self.red_unit_class(
+			self,
+			team="Red",
+			**self.red_unit_kwargs,
+		)
 		target_pos = (3, 5)
 		self.grid.place_agent(red_agent, target_pos)
+
+	def is_battle_over(self) -> bool:
+		alive_blue = sum(
+			1
+			for a in self.agents
+			if getattr(a, "team", None) == "Blue" and getattr(a, "hp", 0) > 0
+		)
+		alive_red = sum(
+			1
+			for a in self.agents
+			if getattr(a, "team", None) == "Red" and getattr(a, "hp", 0) > 0
+		)
+		return alive_blue == 0 or alive_red == 0
 
 	def record_attack(self, team: str, hit: bool, damage: int) -> None:
 		if team not in self.shots_by_team:
@@ -74,3 +106,4 @@ class BattlefieldModel(mesa.Model):
 	def step(self) -> None:
 		self.datacollector.collect(self)
 		self.agents.shuffle_do("step")
+		self.running = not self.is_battle_over()

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import mesa
 import numpy as np
+import pandas as pd
 
 import main as simulation_main
 from simulation.agent import (
@@ -57,7 +58,18 @@ def test_stage_i_turn_mechanism_activates_agents_once_per_model_step() -> None:
 def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
 	class FakeCollector:
 		def get_model_vars_dataframe(self):
-			return {"Alive_Blue": [1], "Alive_Red": [1]}
+			return pd.DataFrame(
+				[
+					{
+						"Alive_Blue": 1,
+						"Alive_Red": 1,
+						"Kills_Blue": 0,
+						"Kills_Red": 0,
+						"Damage_Blue": 0,
+						"Damage_Red": 0,
+					}
+				]
+			)
 
 	class FakeBattlefieldModel:
 		instances: list["FakeBattlefieldModel"] = []
@@ -65,6 +77,7 @@ def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
 		def __init__(self, board: np.ndarray) -> None:
 			self.board = board
 			self.step_calls = 0
+			self.running = True
 			self.datacollector = FakeCollector()
 			FakeBattlefieldModel.instances.append(self)
 
@@ -226,3 +239,43 @@ def test_stage_ii_closed_decision_loop_navigation_detection_and_combat() -> None
 	assert total_shots >= 1
 	assert total_hits >= 1
 	assert blue.hp < blue_hp_before or red.hp < red_hp_before
+
+
+def test_stage_ii_ai_patrol_logic_moves_agent_between_patrol_points() -> None:
+	board = np.zeros((10, 10), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(red, (9, 9))
+	blue.observation_range = 2
+	blue.set_patrol_route([(3, 1), (4, 1)])
+
+	blue.step()
+
+	assert blue.ai_state == "patrol"
+	assert blue.pos == (4, 1)
+
+
+def test_stage_ii_ai_retreat_logic_increases_distance_from_threat() -> None:
+	board = np.zeros((10, 10), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (3, 3))
+	model.grid.move_agent(red, (3, 4))
+
+	blue.hp = 20
+	blue.max_hp = 100
+	blue.retreat_health_ratio = 0.3
+	blue.observation_range = 6
+	blue.view_angle_deg = 180.0
+	blue.facing_direction = (0, 1)
+
+	distance_before = find_path(blue.pos, red.pos, board, algorithm="a_star")
+	blue.step()
+	distance_after = find_path(blue.pos, red.pos, board, algorithm="a_star")
+
+	assert blue.ai_state == "retreat"
+	assert len(distance_after) >= len(distance_before)

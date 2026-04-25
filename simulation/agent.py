@@ -32,6 +32,7 @@ class CombatAgent(mesa.Agent):
 		mobility: int = 2,
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
+		retreat_health_ratio: float = 0.30,
 	) -> None:
 		super().__init__(model)
 		self.team = team
@@ -47,19 +48,36 @@ class CombatAgent(mesa.Agent):
 		self.mobility = mobility
 		self.navigation_algorithm = navigation_algorithm
 		self.allow_diagonal_navigation = allow_diagonal_navigation
+		self.retreat_health_ratio = retreat_health_ratio
 		self.last_detection_scores: dict[int, float] = {}
 		self.current_path: list[tuple[int, int]] = []
 		self.last_damage_dealt: int = 0
 		self.last_damage_taken: int = 0
+		self.max_hp: int = hp
+		self.ai_state: str = "advance"
+		self.patrol_route: list[tuple[int, int]] = []
+		self.patrol_index: int = 0
 
 	def step(self) -> None:
 		if self.hp <= 0:
 			return
 
 		visible_before_move = self.get_visible_enemies()
-		engaged = self.attack_closest_target(visible_before_move)
+		self.update_behavior_state(visible_before_move)
 
-		if not engaged:
+		if self.ai_state == "retreat":
+			self.retreat(visible_before_move)
+		elif self.ai_state == "engage":
+			engaged = self.attack_closest_target(visible_before_move)
+			if not engaged:
+				self.move()
+				visible_after_move = self.get_visible_enemies()
+				self.attack_closest_target(visible_after_move)
+		elif self.ai_state == "patrol":
+			self.patrol_step()
+			visible_after_move = self.get_visible_enemies()
+			self.attack_closest_target(visible_after_move)
+		else:
 			self.move()
 			visible_after_move = self.get_visible_enemies()
 			self.attack_closest_target(visible_after_move)
@@ -70,9 +88,75 @@ class CombatAgent(mesa.Agent):
 		current_step = self.model.steps
 		print(
 			f"[Turn {current_step}] Agent {self.unique_id} "
-			f"({self.team}) in {self.pos} ready. HP: {self.hp}. "
+			f"({self.team}) in {self.pos} ready. HP: {self.hp}. State: {self.ai_state}. "
 			f"Visible enemies: {enemy_ids}"
 		)
+
+	def update_behavior_state(self, visible_enemies: list["CombatAgent"]) -> None:
+		has_visible_enemy = len(visible_enemies) > 0
+		health_ratio = self.hp / max(1, self.max_hp)
+
+		if has_visible_enemy and health_ratio <= self.retreat_health_ratio:
+			self.ai_state = "retreat"
+			return
+		if has_visible_enemy:
+			self.ai_state = "engage"
+			return
+		if self.patrol_route:
+			self.ai_state = "patrol"
+		else:
+			self.ai_state = "advance"
+
+	def set_patrol_route(self, patrol_route: list[tuple[int, int]]) -> None:
+		self.patrol_route = list(patrol_route)
+		self.patrol_index = 0
+
+	def patrol_step(self) -> None:
+		if not self.patrol_route:
+			self.move()
+			return
+
+		target = self.patrol_route[self.patrol_index]
+		if self.pos == target:
+			self.patrol_index = (self.patrol_index + 1) % len(self.patrol_route)
+			target = self.patrol_route[self.patrol_index]
+
+		self.move(target_position=target)
+
+	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:
+		if not visible_enemies:
+			self.move()
+			return
+
+		threat = min(
+			visible_enemies,
+			key=lambda enemy: euclidean_distance(self.pos, enemy.pos),
+		)
+
+		neighbors = list(
+			self.model.grid.get_neighborhood(
+				self.pos,
+				moore=True,
+				include_center=False,
+			)
+		)
+		terrain = getattr(self.model, "terrain", None)
+		if isinstance(terrain, np.ndarray):
+			neighbors = [cell for cell in neighbors if terrain[cell[1], cell[0]] != 1]
+
+		if not neighbors:
+			return
+
+		best_cell = max(
+			neighbors,
+			key=lambda cell: euclidean_distance(cell, threat.pos),
+		)
+		old_position = self.pos
+		self.model.grid.move_agent(self, best_cell)
+		dx = best_cell[0] - old_position[0]
+		dy = best_cell[1] - old_position[1]
+		if (dx, dy) != (0, 0):
+			self.facing_direction = (dx, dy)
 
 	def _is_in_attack_range(self, target: "CombatAgent") -> bool:
 		distance = euclidean_distance(self.pos, target.pos)
@@ -218,6 +302,9 @@ class CombatAgent(mesa.Agent):
 		]
 
 	def _get_navigation_target(self) -> tuple[int, int] | None:
+		if self.patrol_route:
+			return self.patrol_route[self.patrol_index]
+
 		visible_enemies = self.get_visible_enemies()
 		if visible_enemies:
 			return visible_enemies[0].pos
@@ -259,7 +346,7 @@ class CombatAgent(mesa.Agent):
 			if (dx, dy) != (0, 0):
 				self.facing_direction = (dx, dy)
 
-	def move(self) -> None:
+	def move(self, target_position: tuple[int, int] | None = None) -> None:
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
 			self._move_randomly()
@@ -268,7 +355,7 @@ class CombatAgent(mesa.Agent):
 		if self.mobility <= 0:
 			return
 
-		target_position = self._get_navigation_target()
+		target_position = target_position or self._get_navigation_target()
 		if target_position is None:
 			self._move_randomly()
 			return
