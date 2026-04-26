@@ -41,6 +41,11 @@ To run with fixed number of turns:
 python main.py --steps 20
 ```
 
+To run the larger example map with multiple units per team:
+```bash
+python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3 --steps 20
+```
+
 You can also load a custom board containing a matrix of 0s (empty) and 1s (obstacle walls) from a CSV or whitespace-delimited text file:
 ```bash
 python main.py --map custom_board.csv
