@@ -12,6 +12,8 @@ class BattlefieldModel(mesa.Model):
 		red_unit_class: type[CombatAgent] = CombatAgent,
 		blue_unit_kwargs: dict | None = None,
 		red_unit_kwargs: dict | None = None,
+		blue_spawn_points: list[tuple[int, int]] | None = None,
+		red_spawn_points: list[tuple[int, int]] | None = None,
 	) -> None:
 		super().__init__()
 		self.width = board.shape[1]
@@ -21,6 +23,8 @@ class BattlefieldModel(mesa.Model):
 		self.red_unit_class = red_unit_class
 		self.blue_unit_kwargs = blue_unit_kwargs or {}
 		self.red_unit_kwargs = red_unit_kwargs or {}
+		self.blue_spawn_points = blue_spawn_points
+		self.red_spawn_points = red_spawn_points
 		self.grid = mesa.space.MultiGrid(self.width, self.height, torus=False)
 		self.eliminated_by_team = {"Blue": 0, "Red": 0}
 		self.kills_by_team = {"Blue": 0, "Red": 0}
@@ -54,21 +58,28 @@ class BattlefieldModel(mesa.Model):
 
 	def _init_board(self, board: np.ndarray) -> None:
 		"""
-		TODO: Terrain
+		TODO: Expand terrain logic
 		"""
-		blue_agent = self.blue_unit_class(
-			self,
-			team="Blue",
-			**self.blue_unit_kwargs,
-		)
-		self.grid.place_agent(blue_agent, (3, 1))
-		red_agent = self.red_unit_class(
-			self,
-			team="Red",
-			**self.red_unit_kwargs,
-		)
-		target_pos = (3, 5)
-		self.grid.place_agent(red_agent, target_pos)
+		default_blue_spawn = [(3, 1)]
+		default_red_spawn = [(3, 5)]
+		blue_positions = self.blue_spawn_points or default_blue_spawn
+		red_positions = self.red_spawn_points or default_red_spawn
+
+		for spawn_position in blue_positions:
+			blue_agent = self.blue_unit_class(
+				self,
+				team="Blue",
+				**self.blue_unit_kwargs,
+			)
+			self.grid.place_agent(blue_agent, spawn_position)
+
+		for spawn_position in red_positions:
+			red_agent = self.red_unit_class(
+				self,
+				team="Red",
+				**self.red_unit_kwargs,
+			)
+			self.grid.place_agent(red_agent, spawn_position)
 
 	def is_battle_over(self) -> bool:
 		alive_blue = sum(

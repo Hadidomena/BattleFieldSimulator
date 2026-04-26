@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import mesa
@@ -74,11 +75,18 @@ def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
 	class FakeBattlefieldModel:
 		instances: list["FakeBattlefieldModel"] = []
 
-		def __init__(self, board: np.ndarray) -> None:
+		def __init__(
+			self,
+			board: np.ndarray,
+			blue_spawn_points=None,
+			red_spawn_points=None,
+		) -> None:
 			self.board = board
 			self.step_calls = 0
 			self.running = True
 			self.datacollector = FakeCollector()
+			self.blue_spawn_points = blue_spawn_points
+			self.red_spawn_points = red_spawn_points
 			FakeBattlefieldModel.instances.append(self)
 
 		def step(self) -> None:
@@ -131,6 +139,33 @@ def test_stage_i_board_loader_supports_csv_and_whitespace_maps(tmp_path) -> None
 
 	assert np.array_equal(loaded_csv, board)
 	assert np.array_equal(loaded_txt, board)
+
+
+def test_stage_i_example_large_map_can_spawn_multiple_units_per_team() -> None:
+	board_path = Path(__file__).resolve().parents[1] / "data" / "example_large_map.csv"
+	board = simulation_main.load_board(str(board_path))
+	model = BattlefieldModel(
+		board,
+		blue_spawn_points=[(1, 1), (2, 1), (3, 1)],
+		red_spawn_points=[(12, 10), (13, 10), (14, 10)],
+	)
+
+	blue_agents = [
+		agent
+		for agent in model.agents
+		if isinstance(agent, CombatAgent) and agent.team == "Blue"
+	]
+	red_agents = [
+		agent
+		for agent in model.agents
+		if isinstance(agent, CombatAgent) and agent.team == "Red"
+	]
+
+	assert board.shape == (12, 16)
+	assert len(blue_agents) == 3
+	assert len(red_agents) == 3
+	assert {agent.pos for agent in blue_agents} == {(1, 1), (2, 1), (3, 1)}
+	assert {agent.pos for agent in red_agents} == {(12, 10), (13, 10), (14, 10)}
 
 
 def test_stage_ii_pathfinding_accounts_for_terrain_topography_costs() -> None:

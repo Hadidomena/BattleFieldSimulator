@@ -6,6 +6,32 @@ import numpy as np
 from simulation.model import BattlefieldModel
 
 
+def _default_spawn_points(
+	board: np.ndarray, team: str, count: int
+) -> list[tuple[int, int]]:
+	width = board.shape[1]
+	height = board.shape[0]
+	positions: list[tuple[int, int]] = []
+	if count <= 0:
+		return positions
+
+	if team == "Blue":
+		candidate_rows = [1, 2, 3]
+		candidate_columns = list(range(1, min(width - 1, count + 2)))
+	else:
+		candidate_rows = [height - 2, height - 3, height - 4]
+		candidate_columns = list(range(max(1, width - count - 2), width - 1))
+
+	for row in candidate_rows:
+		for column in candidate_columns:
+			if len(positions) >= count:
+				return positions
+			if 0 <= row < height and 0 <= column < width and board[row, column] != 1:
+				positions.append((column, row))
+
+	return positions
+
+
 def load_board(path: str) -> np.ndarray:
 	p = Path(path)
 	if not p.exists():
@@ -37,6 +63,18 @@ def main() -> None:
 		default=-1,
 		help=("Number of steps to run the simulation for"),
 	)
+	parser.add_argument(
+		"--blue-units",
+		type=int,
+		default=1,
+		help=("Number of Blue units to place on the board"),
+	)
+	parser.add_argument(
+		"--red-units",
+		type=int,
+		default=1,
+		help=("Number of Red units to place on the board"),
+	)
 	args = parser.parse_args()
 
 	if args.map:
@@ -49,7 +87,13 @@ def main() -> None:
 	print(board)
 
 	print("\n--- Initializing Environment Model ---")
-	model = BattlefieldModel(board)
+	blue_spawn_points = _default_spawn_points(board, "Blue", args.blue_units)
+	red_spawn_points = _default_spawn_points(board, "Red", args.red_units)
+	model = BattlefieldModel(
+		board,
+		blue_spawn_points=blue_spawn_points,
+		red_spawn_points=red_spawn_points,
+	)
 
 	args.steps = (
 		input("How many steps should the simulation run for? ")
