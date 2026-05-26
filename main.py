@@ -75,6 +75,20 @@ def main() -> None:
 		default=1,
 		help=("Number of Red units to place on the board"),
 	)
+	parser.add_argument(
+		"--output-dir",
+		"-o",
+		type=str,
+		default=".",
+		help=("Directory for telemetry output files (default: current directory)"),
+	)
+	parser.add_argument(
+		"--export-format",
+		type=str,
+		default="both",
+		choices=["csv", "json", "both"],
+		help=("Export format for telemetry data (default: both)"),
+	)
 	args = parser.parse_args()
 
 	if args.map:
@@ -106,9 +120,18 @@ def main() -> None:
 	for i in range(num_steps):
 		model.step()
 
-	print("\n=== Results (Analytics Module) ===")
+	print("\nResults (Analytics Module)")
 	df = model.datacollector.get_model_vars_dataframe()
 	print(df)
+
+	print(f"\nTelemetry Export")
+	if args.export_format in ("csv", "both"):
+		files = model.telemetry.export_csv(args.output_dir)
+		for f in files:
+			print(f"Exported: {f}")
+	if args.export_format in ("json", "both"):
+		filepath = model.telemetry.export_json(args.output_dir)
+		print(f"Exported: {filepath}")
 
 
 if __name__ == "__main__":
