@@ -3,23 +3,26 @@ repos:
     hooks:
       - id: ruff
         name: ruff-check
-        entry: venv/Scripts/ruff.exe check --fix --unsafe-fixes
-        language: system
+        entry: ruff check --fix --force-exclude
+        language: python
         types: [python]
         require_serial: true
         stages: [pre-commit]
+        additional_dependencies: [ruff]
 
       - id: ruff-format
         name: ruff-format
-        entry: venv/Scripts/ruff.exe format
-        language: system
+        entry: ruff format --force-exclude
+        language: python
         types: [python]
         require_serial: true
         stages: [pre-commit]
+        additional_dependencies: [ruff]
 
       - id: python-compile
         name: python-compile
-        entry: venv/Scripts/python.exe -m py_compile
+        entry: python -m py_compile
         language: system
         types: [python]
         stages: [pre-commit]
+        pass_filenames: true
