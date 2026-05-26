@@ -53,6 +53,7 @@ class CombatAgent(mesa.Agent):
 		self.current_path: list[tuple[int, int]] = []
 		self.last_damage_dealt: int = 0
 		self.last_damage_taken: int = 0
+		self._last_attacker_id: int | None = None
 		self.max_hp: int = hp
 		self.ai_state: str = "advance"
 		self.patrol_route: list[tuple[int, int]] = []
@@ -202,7 +203,14 @@ class CombatAgent(mesa.Agent):
 		roll = self.random.random()
 		if roll > hit_chance:
 			if hasattr(self.model, "record_attack"):
-				self.model.record_attack(self.team, hit=False, damage=0)
+				self.model.record_attack(
+					self.team,
+					hit=False,
+					damage=0,
+					attacker_id=self.unique_id,
+					defender_id=target.unique_id,
+					defender_team=target.team,
+				)
 			self.last_damage_dealt = 0
 			return False
 
@@ -216,7 +224,14 @@ class CombatAgent(mesa.Agent):
 
 		target.receive_damage(damage, attacker=self)
 		if hasattr(self.model, "record_attack"):
-			self.model.record_attack(self.team, hit=True, damage=damage)
+			self.model.record_attack(
+				self.team,
+				hit=True,
+				damage=damage,
+				attacker_id=self.unique_id,
+				defender_id=target.unique_id,
+				defender_team=target.team,
+			)
 		self.last_damage_dealt = damage
 		return True
 
@@ -228,6 +243,9 @@ class CombatAgent(mesa.Agent):
 		self.last_damage_taken = damage
 		self.hp = max(0, self.hp - damage)
 
+		if attacker is not None:
+			self._last_attacker_id = attacker.unique_id
+
 		if self.hp == 0:
 			killer_team = attacker.team if attacker else None
 			self.eliminate(killer_team)
@@ -238,6 +256,8 @@ class CombatAgent(mesa.Agent):
 			self.model.register_elimination(
 				eliminated_team=self.team,
 				killer_team=killer_team,
+				eliminated_id=self.unique_id,
+				killer_id=self._last_attacker_id,
 			)
 
 		if self.pos is not None and hasattr(self.model, "grid"):

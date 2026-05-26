@@ -2,6 +2,7 @@ import mesa
 import numpy as np
 
 from simulation.agent import CombatAgent
+from simulation.telemetry import TelemetryCollector
 
 
 class BattlefieldModel(mesa.Model):
@@ -52,8 +53,10 @@ class BattlefieldModel(mesa.Model):
 			},
 			agent_reporters={"HP": "hp"},
 		)
+		self.telemetry = TelemetryCollector()
 
 		self._init_board(board)
+		self.telemetry.record_step(self)
 		self.running = True
 
 	def _init_board(self, board: np.ndarray) -> None:
@@ -94,7 +97,15 @@ class BattlefieldModel(mesa.Model):
 		)
 		return alive_blue == 0 or alive_red == 0
 
-	def record_attack(self, team: str, hit: bool, damage: int) -> None:
+	def record_attack(
+		self,
+		team: str,
+		hit: bool,
+		damage: int,
+		attacker_id: int = 0,
+		defender_id: int = 0,
+		defender_team: str = "",
+	) -> None:
 		if team not in self.shots_by_team:
 			return
 
@@ -103,10 +114,22 @@ class BattlefieldModel(mesa.Model):
 			self.hits_by_team[team] += 1
 			self.damage_by_team[team] += max(0, int(damage))
 
+		self.telemetry.record_shot(
+			step=self.steps,
+			attacker_id=attacker_id,
+			attacker_team=team,
+			defender_id=defender_id,
+			defender_team=defender_team,
+			hit=hit,
+			damage=damage,
+		)
+
 	def register_elimination(
 		self,
 		eliminated_team: str,
 		killer_team: str | None,
+		eliminated_id: int = 0,
+		killer_id: int | None = None,
 	) -> None:
 		if eliminated_team in self.eliminated_by_team:
 			self.eliminated_by_team[eliminated_team] += 1
@@ -114,7 +137,16 @@ class BattlefieldModel(mesa.Model):
 		if killer_team in self.kills_by_team:
 			self.kills_by_team[killer_team] += 1
 
+		self.telemetry.record_elimination(
+			step=self.steps,
+			eliminated_id=eliminated_id,
+			eliminated_team=eliminated_team,
+			killer_id=killer_id,
+			killer_team=killer_team,
+		)
+
 	def step(self) -> None:
 		self.datacollector.collect(self)
 		self.agents.shuffle_do("step")
+		self.telemetry.record_step(self)
 		self.running = not self.is_battle_over()
