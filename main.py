@@ -124,7 +124,7 @@ def main() -> None:
 	df = model.datacollector.get_model_vars_dataframe()
 	print(df)
 
-	print(f"\nTelemetry Export")
+	print("\nTelemetry Export")
 	if args.export_format in ("csv", "both"):
 		files = model.telemetry.export_csv(args.output_dir)
 		for f in files:
