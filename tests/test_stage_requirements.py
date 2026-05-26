@@ -57,6 +57,13 @@ def test_stage_i_turn_mechanism_activates_agents_once_per_model_step() -> None:
 
 
 def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
+	class FakeTelmetry:
+		def export_csv(self, output_dir):
+			return []
+
+		def export_json(self, output_dir):
+			return "telemetry.json"
+
 	class FakeCollector:
 		def get_model_vars_dataframe(self):
 			return pd.DataFrame(
@@ -85,6 +92,7 @@ def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
 			self.step_calls = 0
 			self.running = True
 			self.datacollector = FakeCollector()
+			self.telemetry = FakeTelmetry()
 			self.blue_spawn_points = blue_spawn_points
 			self.red_spawn_points = red_spawn_points
 			FakeBattlefieldModel.instances.append(self)
