@@ -1,0 +1,21 @@
+{
+    "name": "H3 - Detection/First-Strike Advantage: Recon vs Infantry with Equalized Combat Stats",
+    "hypothesis": "H3: A unit with superior detection range gains a decisive first-strike advantage — it sees, engages, and damages the enemy before being detected in return.",
+    "description": "Two ReconSquads vs two InfantrySquads on an open field. Both teams have identical combat stats (HP, firepower, armor, accuracy) equalized to remove unit quality as a variable. Only detection range (12 vs 6) and mobility (3 vs 2) differ. Each team starts grouped in its spawn zone.",
+    "map": "data/scenarios/maps/open_field_20x20.csv",
+    "blue_team": {
+        "units": [
+            {"class": "ReconSquad", "count": 2, "overrides": {"hp": 100, "firepower": 10, "armor": 0.10, "accuracy": 0.75}}
+        ],
+        "spawn_points": [[1, 9], [1, 10]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 2, "overrides": {"observation_range": 6, "accuracy": 0.75}}
+        ],
+        "spawn_points": [[18, 9], [18, 10]]
+    },
+    "steps": 80,
+    "run_count": 20,
+    "expected_observations": "Blue (Recon) should win >70% of engagements due to 12 observation_range vs 6 and 3 mobility vs 2, giving them both detection and positioning advantage."
+}

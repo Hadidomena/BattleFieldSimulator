@@ -1,0 +1,21 @@
+{
+    "name": "H4 - Chokepoint Defense: Narrow Passage vs Open Field",
+    "hypothesis": "H4: A defending force positioned behind a chokepoint (narrow gap between obstacles) will achieve a higher kill/death ratio than the same force on an open field, because the chokepoint funnels enemies into a kill zone.",
+    "description": "Symmetrical forces (3 InfantrySquads each) fight on a map with two 2-cell-wide gaps between large obstacle blocks in the center. Blue spawns south, Red spawns north. The chokepoint naturally limits how many units can engage simultaneously, favoring the side that reaches it first.",
+    "map": "data/scenarios/maps/chokepoints_20x20.csv",
+    "blue_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 3}
+        ],
+        "spawn_points": [[9, 16], [8, 17], [10, 17]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 3}
+        ],
+        "spawn_points": [[9, 2], [8, 1], [10, 1]]
+    },
+    "steps": 100,
+    "run_count": 10,
+    "expected_observations": "The chokepoint should produce more decisive victories (one side eliminated with fewer losses) compared to the open field baseline, because the map geometry amplifies small tactical advantages."
+}

@@ -1,0 +1,21 @@
+{
+    "name": "H2 - Cover Effectiveness: Defenders with Cover vs Attackers in Open",
+    "hypothesis": "H2: Units positioned behind/within obstacles receive a measurable survival advantage through the cover mechanic, reducing received damage and winning a disproportionate share of engagements.",
+    "description": "One InfantrySquad behind scattered cover vs one InfantrySquad advancing across open ground. The defending unit starts in a cell surrounded by obstacles on 2-3 sides, maximizing cover_ratio. Both teams are symmetric in stats — only positioning differs.",
+    "map": "data/scenarios/maps/scattered_cover_15x15.csv",
+    "blue_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 1}
+        ],
+        "spawn_points": [[7, 2]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 1}
+        ],
+        "spawn_points": [[7, 12]]
+    },
+    "steps": 60,
+    "run_count": 20,
+    "expected_observations": "The unit closer to cover or that reaches cover first should survive longer and win more engagements, demonstrating cover_ratio impact on hit_probability and calculate_damage."
+}

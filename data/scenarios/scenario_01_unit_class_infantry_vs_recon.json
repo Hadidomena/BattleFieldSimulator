@@ -1,0 +1,21 @@
+{
+    "name": "H1 - Unit Class Comparison: Infantry vs Recon on Open Field",
+    "hypothesis": "H1: ReconSquad with superior detection range and mobility will detect InfantrySquad first and gain a first-strike advantage, winning the majority of 1v1 engagements.",
+    "description": "One InfantrySquad vs one ReconSquad on an open 20x20 field. Both start 18 tiles apart facing toward the center. The open field removes cover/LoS variables, isolating the impact of detection range, mobility, and combat stats.",
+    "map": "data/scenarios/maps/open_field_20x20.csv",
+    "blue_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 1}
+        ],
+        "spawn_points": [[1, 9]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "ReconSquad", "count": 1}
+        ],
+        "spawn_points": [[18, 9]]
+    },
+    "steps": 80,
+    "run_count": 20,
+    "expected_observations": "ReconSquad should win >65% of engagements due to 12 vs 6 detection range and 3 vs 2 mobility, despite lower HP and firepower."
+}

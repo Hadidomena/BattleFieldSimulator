@@ -1,0 +1,21 @@
+{
+    "name": "H8 - Asymmetric Terrain: One Side Has Cover Advantage",
+    "hypothesis": "H8: When one team spawns with cover and the other in the open (on an otherwise symmetric map), the team with cover has a significant advantage in survival and damage dealt.",
+    "description": "Two InfantrySquads per team on an asymmetric map where the northern half has a cover wall (one side can use it, the other must cross open ground to engage). Blue spawns in open south, Red spawns behind cover in north.",
+    "map": "data/scenarios/maps/asymmetric_cover_15x15.csv",
+    "blue_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 2}
+        ],
+        "spawn_points": [[6, 12], [8, 12]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 2}
+        ],
+        "spawn_points": [[6, 2], [8, 2]]
+    },
+    "steps": 60,
+    "run_count": 15,
+    "expected_observations": "Red (with cover) should win >60% of engagements. Average damage dealt by Red should be higher than Blue. The cover_ratio mechanic should measurably reduce hit probability against Red units positioned near walls."
+}

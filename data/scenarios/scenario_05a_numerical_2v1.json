@@ -1,0 +1,21 @@
+{
+    "name": "H5 - Numerical Superiority: 2v1 and 3v1 Infantry Engagement",
+    "hypothesis": "H5: Numerical superiority provides a greater-than-linear advantage — 2vs1 should win more than 66% and 3vs1 more than 75% of engagements, because multiple attackers can concentrate fire on single targets.",
+    "description": "InfantrySquads with identical stats face off in 2v1 and 3v1 configurations on an open 20x20 field. The outnumbered side has no terrain to exploit. Run both sub-variants (2v1 and 3v1) 15 times each.",
+    "map": "data/scenarios/maps/open_field_20x20.csv",
+    "blue_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 2}
+        ],
+        "spawn_points": [[1, 8], [1, 11]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 1}
+        ],
+        "spawn_points": [[18, 9]]
+    },
+    "steps": 80,
+    "run_count": 15,
+    "expected_observations": "Blue should win >70% of engagements. The 3v1 variant (see scenario_05b) should be even more lopsided. Losses on the winning side should be lower than proportional."
+}

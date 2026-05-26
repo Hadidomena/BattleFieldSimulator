@@ -1,0 +1,21 @@
+{
+    "name": "H6 - Mobility vs Durability: ReconSquad vs MainBattleTank",
+    "hypothesis": "H6: On an open field, the MainBattleTank's superior HP, firepower, and armor should decisively defeat the ReconSquad despite the latter's mobility advantage. On a large map with obstacles, the ReconSquad may use mobility and vision to avoid direct engagement.",
+    "description": "One ReconSquad vs one MainBattleTank on an open 20x20 field. This tests whether raw combat power trumps mobility in a straight fight.",
+    "map": "data/scenarios/maps/open_field_20x20.csv",
+    "blue_team": {
+        "units": [
+            {"class": "ReconSquad", "count": 1}
+        ],
+        "spawn_points": [[1, 9]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "MainBattleTank", "count": 1}
+        ],
+        "spawn_points": [[18, 9]]
+    },
+    "steps": 80,
+    "run_count": 20,
+    "expected_observations": "MainBattleTank should win >85% of engagements. ReconSquad's only path to victory is through repeated hit-and-run if the terrain allows it — which it does not on an open field."
+}

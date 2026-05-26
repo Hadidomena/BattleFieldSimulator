@@ -1,0 +1,21 @@
+{
+    "name": "H5b - Numerical Superiority: 3v1 Infantry Engagement",
+    "hypothesis": "H5: Three InfantrySquads vs one should produce >80% win rate and the lone defender should rarely survive beyond the initial contact.",
+    "description": "Three InfantrySquads vs one InfantrySquad on an open 20x20 field. This sub-variant tests whether the advantage scales beyond 2v1.",
+    "map": "data/scenarios/maps/open_field_20x20.csv",
+    "blue_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 3}
+        ],
+        "spawn_points": [[1, 8], [1, 10], [1, 12]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 1}
+        ],
+        "spawn_points": [[18, 10]]
+    },
+    "steps": 80,
+    "run_count": 15,
+    "expected_observations": "Blue should win >85% of engagements. Red should rarely eliminate more than one Blue unit before falling."
+}

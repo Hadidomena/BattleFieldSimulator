@@ -1,0 +1,21 @@
+{
+    "name": "H6b - Mobility vs Durability: ReconSquad vs MainBattleTank in Urban Grid",
+    "hypothesis": "H6: In an urban grid with frequent line-of-sight breaks, the ReconSquad's detection and mobility advantages may allow it to avoid unfavorable engagements and potentially win through flanking.",
+    "description": "Same ReconSquad vs MainBattleTank matchup but on a dense urban grid map with scattered obstacles that break line of sight. This tests whether terrain complexity shifts the mobility/durability balance.",
+    "map": "data/scenarios/maps/urban_grid_20x20.csv",
+    "blue_team": {
+        "units": [
+            {"class": "ReconSquad", "count": 1}
+        ],
+        "spawn_points": [[1, 1]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "MainBattleTank", "count": 1}
+        ],
+        "spawn_points": [[18, 18]]
+    },
+    "steps": 120,
+    "run_count": 20,
+    "expected_observations": "ReconSquad should win a significantly higher percentage than on the open field (>30% vs <15%), demonstrating that complex terrain amplifies mobility and detection advantages."
+}

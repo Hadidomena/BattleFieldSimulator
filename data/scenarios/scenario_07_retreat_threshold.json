@@ -1,0 +1,21 @@
+{
+    "name": "H7 - Retreat Threshold Effect on Survival",
+    "hypothesis": "H7: Units with a higher retreat_health_ratio (retreating at 50% HP instead of 30%) will survive longer on average, but may deal less damage because they disengage earlier.",
+    "description": "Two InfantrySquads vs two InfantrySquads on an open field. Blue team has retreat_health_ratio=0.50 (retreats early), Red team has retreat_health_ratio=0.10 (fights nearly to death). Both teams identical otherwise.",
+    "map": "data/scenarios/maps/open_field_20x20.csv",
+    "blue_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 2, "overrides": {"retreat_health_ratio": 0.50}}
+        ],
+        "spawn_points": [[1, 9], [1, 10]]
+    },
+    "red_team": {
+        "units": [
+            {"class": "InfantrySquad", "count": 2, "overrides": {"retreat_health_ratio": 0.10}}
+        ],
+        "spawn_points": [[18, 9], [18, 10]]
+    },
+    "steps": 100,
+    "run_count": 15,
+    "expected_observations": "Blue (early retreat) should have higher average HP among survivors at battle end, but may lose more engagements because retreating reduces offensive output. Red (late retreat) should have more kills on average but lower HP."
+}
