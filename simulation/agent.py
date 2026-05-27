@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import mesa
 import numpy as np
 
@@ -71,6 +73,8 @@ class CombatAgent(mesa.Agent):
 		self.update_behavior_state(visible_before_move)
 
 		if self.ai_state == "retreat":
+			if not self._covering_fire(visible_before_move):
+				self._covering_fire_suppress(visible_before_move)
 			self.retreat(visible_before_move)
 		elif self.ai_state == "engage":
 			engaged = self.attack_closest_target(visible_before_move)
@@ -86,16 +90,6 @@ class CombatAgent(mesa.Agent):
 			self.move()
 			visible_after_move = self.get_visible_enemies()
 			self.attack_closest_target(visible_after_move)
-
-		enemies = self.get_visible_enemies()
-		enemy_ids = [e.unique_id for e in enemies]
-
-		current_step = self.model.steps
-		print(
-			f"[Turn {current_step}] Agent {self.unique_id} "
-			f"({self.team}) in {self.pos} ready. HP: {self.hp}. State: {self.ai_state}. "
-			f"Visible enemies: {enemy_ids}"
-		)
 
 	def update_behavior_state(self, visible_enemies: list["CombatAgent"]) -> None:
 		has_visible_enemy = len(visible_enemies) > 0
@@ -128,14 +122,51 @@ class CombatAgent(mesa.Agent):
 
 		self.move(target_position=target)
 
-	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:  # noqa: C901
-		if not visible_enemies:
-			self.move()
-			return
+	def _get_nearby_allies(
+		self, pos: tuple[int, int], radius: float
+	) -> list["CombatAgent"]:
+		allies: list["CombatAgent"] = []
+		for agent in self.model.agents:
+			if (
+				isinstance(agent, CombatAgent)
+				and agent.team == self.team
+				and agent.hp > 0
+				and agent.unique_id != self.unique_id
+				and euclidean_distance(pos, agent.pos) <= radius
+			):
+				allies.append(agent)
+		return allies
 
+	def _get_ally_positions(self) -> list[tuple[int, int]]:
+		positions: list[tuple[int, int]] = []
+		for agent in self.model.agents:
+			if (
+				isinstance(agent, CombatAgent)
+				and agent.team == self.team
+				and agent.hp > 0
+				and agent.unique_id != self.unique_id
+				and agent.pos is not None
+			):
+				positions.append(agent.pos)
+		return positions
+
+	def _covering_fire(self, visible_enemies: list["CombatAgent"]) -> bool:
+		target = self._pick_attack_target(visible_enemies)
+		if target is None:
+			return False
+		return self.attack(target, accuracy_override=self.accuracy * 0.5)
+
+	def _covering_fire_suppress(self, visible_enemies: list["CombatAgent"]) -> bool:
+		target = self._pick_attack_target(visible_enemies)
+		if target is None:
+			return False
+		return self.attack(target, accuracy_override=self.accuracy * 0.35)
+
+	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:  # noqa: C901
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
 			self.move()
+			self._covering_fire(self.get_visible_enemies())
 			return
 
 		enemy_positions = [e.pos for e in visible_enemies if e.pos is not None]
@@ -143,10 +174,44 @@ class CombatAgent(mesa.Agent):
 			self.move()
 			return
 
+		ally_positions = self._get_ally_positions()
+
+		nearby_allies = self._get_nearby_allies(self.pos, self.attack_range * 2)
+		if len(visible_enemies) > len(nearby_allies) + 1:
+			self.ai_state = "engage"
+			self.attack_closest_target(visible_enemies)
+			return
+
+		retreat_group: list["CombatAgent"] = []
+		for agent in self.model.agents:
+			if (
+				isinstance(agent, CombatAgent)
+				and agent.team == self.team
+				and agent.hp > 0
+				and agent.unique_id != self.unique_id
+				and agent.ai_state == "retreat"
+				and agent.pos is not None
+				and euclidean_distance(self.pos, agent.pos) <= self.observation_range
+			):
+				retreat_group.append(agent)
+
+		group_centroid: tuple[float, float] | None = None
+		if retreat_group:
+			cx = sum(a.pos[0] for a in retreat_group) / len(retreat_group)
+			cy = sum(a.pos[1] for a in retreat_group) / len(retreat_group)
+			group_centroid = (cx, cy)
+
 		best_cell: tuple[int, int] | None = None
 		best_score = float("-inf")
 
-		search_radius = max(3, self.mobility + 1)
+		max_map_dist = (
+			math.hypot(
+				getattr(self.model, "width", 20), getattr(self.model, "height", 20)
+			)
+			or 1.0
+		)
+
+		search_radius = max(4, self.mobility + 2)
 		for dx in range(-search_radius, search_radius + 1):
 			for dy in range(-search_radius, search_radius + 1):
 				if dx == 0 and dy == 0:
@@ -166,7 +231,28 @@ class CombatAgent(mesa.Agent):
 
 				cover = cover_ratio(candidate, terrain)
 
-				score = dist_from_enemies * 1.0 + los_blocked * 5.0 + cover * 8.0
+				nearby_allies_at_cell = 0
+				for ap in ally_positions:
+					if euclidean_distance(candidate, ap) <= self.attack_range:
+						nearby_allies_at_cell += 1
+
+				group_cohesion = 0.0
+				if group_centroid is not None:
+					dg = euclidean_distance(candidate, group_centroid)
+					group_cohesion = max(
+						0.0,
+						1.0 - dg / self.observation_range,
+					)
+
+				normalized_dist = dist_from_enemies / max_map_dist
+
+				score = (
+					normalized_dist * 10.0
+					+ los_blocked * 5.0
+					+ cover * 8.0
+					+ nearby_allies_at_cell * 3.0
+					+ group_cohesion * 5.0
+				)
 
 				if score > best_score:
 					best_score = score
@@ -174,6 +260,7 @@ class CombatAgent(mesa.Agent):
 
 		if best_cell is None:
 			self.move()
+			self._covering_fire(self.get_visible_enemies())
 			return
 
 		path = find_path(
@@ -186,6 +273,7 @@ class CombatAgent(mesa.Agent):
 
 		if len(path) <= 1:
 			self._move_randomly()
+			self._covering_fire(self.get_visible_enemies())
 			return
 
 		step_index = min(self.mobility, len(path) - 1)
@@ -198,6 +286,8 @@ class CombatAgent(mesa.Agent):
 			dy = path[1][1] - old_position[1]
 			if (dx, dy) != (0, 0):
 				self.facing_direction = (dx, dy)
+
+		self._covering_fire(self.get_visible_enemies())
 
 	def _is_in_attack_range(self, target: "CombatAgent") -> bool:
 		distance = euclidean_distance(self.pos, target.pos)
@@ -220,7 +310,11 @@ class CombatAgent(mesa.Agent):
 			return False
 		return self.attack(target)
 
-	def attack(self, target: "CombatAgent") -> bool:
+	def attack(
+		self,
+		target: "CombatAgent",
+		accuracy_override: float | None = None,
+	) -> bool:
 		if self.hp <= 0 or target.hp <= 0:
 			return False
 		if target.pos is None:
@@ -240,10 +334,11 @@ class CombatAgent(mesa.Agent):
 		)
 		attacker_cover *= getattr(self, "cover_multiplier", 1.0)
 
+		base_acc = accuracy_override if accuracy_override is not None else self.accuracy
 		hit_chance = hit_probability(
 			distance=distance,
 			attack_range=self.attack_range,
-			base_accuracy=self.accuracy,
+			base_accuracy=base_acc,
 			cover=cover,
 			attacker_cover=attacker_cover,
 		)
