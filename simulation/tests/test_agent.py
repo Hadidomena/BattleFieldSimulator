@@ -207,23 +207,32 @@ def test_covering_fire_during_retreat() -> None:
 	red = _agent_by_team(model, "Red")
 
 	model.grid.move_agent(blue, (3, 3))
-	model.grid.move_agent(red, (3, 5))
+	model.grid.move_agent(red, (3, 4))
 
 	blue.attack_range = 5.0
 	blue.accuracy = 1.0
 	blue.max_hp = 100
-	blue.hp = 10
+	blue.hp = 20
 	blue.retreat_health_ratio = 0.50
+	blue.view_angle_deg = 360.0
+	blue.firepower = 50
 	red.hp = 100
 
-	red.accuracy = 1.0
-	red.firepower = 10
-	red.attack_range = 5.0
+	red.accuracy = 0.0
+	red.firepower = 0
+	red.attack_range = 0.0
 
+	visible = blue.get_visible_enemies()
+	assert len(visible) > 0, "Blue should see Red"
+
+	shots_before = model.shots_by_team["Blue"]
 	blue.step()
+	shots_after = model.shots_by_team["Blue"]
 
-	assert blue.ai_state == "retreat"
-	assert blue.last_damage_dealt > 0 or blue.hp < 10
+	assert blue.ai_state == "retreat", f"Expected retreat, got {blue.ai_state}"
+	assert shots_after > shots_before, (
+		f"Covering fire should shoot at enemies (shots: {shots_before} -> {shots_after})"
+	)
 
 
 def test_retreat_does_not_abandon_outnumbered_allies() -> None:
