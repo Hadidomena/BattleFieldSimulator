@@ -91,10 +91,10 @@ class TelemetryCollector:
 			{
 				"step": step,
 				"event_type": "hit" if hit else "miss",
-				"attacker_id": attacker_id,
-				"attacker_team": attacker_team,
-				"defender_id": defender_id,
-				"defender_team": defender_team,
+				"actor_id": attacker_id,
+				"actor_team": attacker_team,
+				"target_id": defender_id,
+				"target_team": defender_team,
 				"damage": damage if hit else 0,
 			}
 		)
@@ -111,10 +111,11 @@ class TelemetryCollector:
 			{
 				"step": step,
 				"event_type": "elimination",
-				"eliminated_id": eliminated_id,
-				"eliminated_team": eliminated_team,
-				"killer_id": killer_id,
-				"killer_team": killer_team,
+				"actor_id": killer_id,
+				"actor_team": killer_team,
+				"target_id": eliminated_id,
+				"target_team": eliminated_team,
+				"damage": None,
 			}
 		)
 
