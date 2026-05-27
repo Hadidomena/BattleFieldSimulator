@@ -7,10 +7,12 @@ from simulation.utils import (
 	calculate_damage,
 	cover_ratio,
 	detection_score,
+	directional_cover_ratio,
 	euclidean_distance,
 	find_path,
 	has_line_of_sight,
 	hit_probability,
+	is_in_vision_cone,
 	visible_cells,
 )
 
@@ -33,6 +35,7 @@ class CombatAgent(mesa.Agent):
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
 		retreat_health_ratio: float = 0.30,
+		cover_multiplier: float = 1.0,
 	) -> None:
 		super().__init__(model)
 		self.team = team
@@ -49,6 +52,7 @@ class CombatAgent(mesa.Agent):
 		self.navigation_algorithm = navigation_algorithm
 		self.allow_diagonal_navigation = allow_diagonal_navigation
 		self.retreat_health_ratio = retreat_health_ratio
+		self.cover_multiplier = cover_multiplier
 		self.last_detection_scores: dict[int, float] = {}
 		self.current_path: list[tuple[int, int]] = []
 		self.last_damage_dealt: int = 0
@@ -228,12 +232,20 @@ class CombatAgent(mesa.Agent):
 		if not has_line_of_sight(self.pos, target.pos, self.model.terrain):
 			return False
 
-		cover = cover_ratio(target.pos, self.model.terrain)
+		cover = directional_cover_ratio(target.pos, self.pos, self.model.terrain)
+		cover *= getattr(target, "cover_multiplier", 1.0)
+
+		attacker_cover = directional_cover_ratio(
+			self.pos, target.pos, self.model.terrain
+		)
+		attacker_cover *= getattr(self, "cover_multiplier", 1.0)
+
 		hit_chance = hit_probability(
 			distance=distance,
 			attack_range=self.attack_range,
 			base_accuracy=self.accuracy,
 			cover=cover,
+			attacker_cover=attacker_cover,
 		)
 
 		roll = self.random.random()
@@ -250,12 +262,22 @@ class CombatAgent(mesa.Agent):
 			self.last_damage_dealt = 0
 			return False
 
+		flanking_multiplier = 1.0
+		if not is_in_vision_cone(
+			target.pos,
+			self.pos,
+			target.facing_direction,
+			target.view_angle_deg,
+		):
+			flanking_multiplier = 1.5
+
 		damage = calculate_damage(
 			firepower=self.firepower,
 			distance=distance,
 			attack_range=self.attack_range,
 			cover=cover,
 			armor=target.armor,
+			flanking_multiplier=flanking_multiplier,
 		)
 
 		target.receive_damage(damage, attacker=self)
@@ -464,6 +486,7 @@ class InfantrySquad(CombatAgent):
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
 		retreat_health_ratio: float = 0.30,
+		cover_multiplier: float = 1.0,
 	) -> None:
 		super().__init__(
 			model,
@@ -481,6 +504,7 @@ class InfantrySquad(CombatAgent):
 			navigation_algorithm,
 			allow_diagonal_navigation,
 			retreat_health_ratio=retreat_health_ratio,
+			cover_multiplier=cover_multiplier,
 		)
 
 
@@ -506,6 +530,7 @@ class ReconSquad(CombatAgent):
 		mobility: int = 3,
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
+		cover_multiplier: float = 1.0,
 	) -> None:
 		super().__init__(
 			model,
@@ -522,6 +547,7 @@ class ReconSquad(CombatAgent):
 			mobility,
 			navigation_algorithm,
 			allow_diagonal_navigation,
+			cover_multiplier=cover_multiplier,
 		)
 
 
@@ -547,6 +573,7 @@ class MechanizedInfantry(CombatAgent):
 		mobility: int = 4,
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
+		cover_multiplier: float = 0.7,
 	) -> None:
 		super().__init__(
 			model,
@@ -563,6 +590,7 @@ class MechanizedInfantry(CombatAgent):
 			mobility,
 			navigation_algorithm,
 			allow_diagonal_navigation,
+			cover_multiplier=cover_multiplier,
 		)
 
 
@@ -588,6 +616,7 @@ class MainBattleTank(CombatAgent):
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
 		retreat_health_ratio: float = 0.30,
+		cover_multiplier: float = 0.3,
 	) -> None:
 		super().__init__(
 			model,
@@ -604,6 +633,8 @@ class MainBattleTank(CombatAgent):
 			mobility,
 			navigation_algorithm,
 			allow_diagonal_navigation,
+			retreat_health_ratio=retreat_health_ratio,
+			cover_multiplier=cover_multiplier,
 		)
 
 
