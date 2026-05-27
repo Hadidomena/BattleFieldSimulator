@@ -269,11 +269,51 @@ def cover_ratio(
 	return blocked / considered
 
 
+def directional_cover_ratio(
+	position: Position,
+	attacker_position: Position,
+	terrain: np.ndarray,
+	include_diagonal: bool = True,
+) -> float:
+	regular = cover_ratio(position, terrain, include_diagonal)
+	if regular == 0.0:
+		return 0.0
+
+	x, y = position
+	ax, ay = attacker_position
+	dx_att = ax - x
+	dy_att = ay - y
+
+	neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+	if include_diagonal:
+		neighbors.extend([(-1, -1), (-1, 1), (1, -1), (1, 1)])
+
+	obstacles_between = 0
+	total_obstacles = 0
+	for dx, dy in neighbors:
+		nx = x + dx
+		ny = y + dy
+		if not is_position_in_bounds((nx, ny), terrain):
+			continue
+		if terrain[ny, nx] == 1:
+			total_obstacles += 1
+			dot = dx * dx_att + dy * dy_att
+			if dot > 0:
+				obstacles_between += 1
+
+	if total_obstacles == 0:
+		return 0.0
+
+	directional_factor = obstacles_between / total_obstacles
+	return regular * directional_factor
+
+
 def hit_probability(
 	distance: float,
 	attack_range: float,
 	base_accuracy: float,
 	cover: float,
+	attacker_cover: float = 0.0,
 ) -> float:
 	if attack_range <= 0:
 		return 0.0
@@ -282,9 +322,10 @@ def hit_probability(
 
 	normalized_distance = clamp(distance / attack_range, 0.0, 1.0)
 	distance_penalty = 0.45 * normalized_distance
-	cover_penalty = 0.35 * clamp(cover, 0.0, 1.0)
+	cover_penalty = 0.50 * clamp(cover, 0.0, 1.0)
+	stability_bonus = 0.12 * clamp(attacker_cover, 0.0, 1.0)
 
-	chance = base_accuracy - distance_penalty - cover_penalty
+	chance = base_accuracy - distance_penalty - cover_penalty + stability_bonus
 	return clamp(chance, 0.0, 1.0)
 
 
@@ -294,6 +335,7 @@ def calculate_damage(
 	attack_range: float,
 	cover: float,
 	armor: float = 0.0,
+	flanking_multiplier: float = 1.0,
 ) -> int:
 	if firepower <= 0:
 		return 0
@@ -302,10 +344,12 @@ def calculate_damage(
 
 	normalized_distance = clamp(distance / attack_range, 0.0, 1.0)
 	range_factor = 1.0 - (0.50 * normalized_distance)
-	cover_factor = 1.0 - (0.40 * clamp(cover, 0.0, 1.0))
+	cover_factor = 1.0 - (0.55 * clamp(cover, 0.0, 1.0))
 	armor_factor = 1.0 - clamp(armor, 0.0, 0.90)
 
-	raw_damage = firepower * range_factor * cover_factor * armor_factor
+	raw_damage = (
+		firepower * range_factor * cover_factor * armor_factor * flanking_multiplier
+	)
 	return max(1, int(round(raw_damage)))
 
 
@@ -348,8 +392,6 @@ def has_line_of_sight(
 	x0, y0 = pos1
 	x1, y1 = pos2
 	line = list(bresenham_line(x0, y0, x1, y1))
-
-	# Start and end cells are excluded to allow checking visibility to occupied cells.
 	for x, y in line[1:-1]:
 		if terrain[y, x] == 1:
 			return False
