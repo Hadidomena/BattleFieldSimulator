@@ -124,40 +124,76 @@ class CombatAgent(mesa.Agent):
 
 		self.move(target_position=target)
 
-	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:
+	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:  # noqa: C901
 		if not visible_enemies:
 			self.move()
 			return
 
-		threat = min(
-			visible_enemies,
-			key=lambda enemy: euclidean_distance(self.pos, enemy.pos),
-		)
-
-		neighbors = list(
-			self.model.grid.get_neighborhood(
-				self.pos,
-				moore=True,
-				include_center=False,
-			)
-		)
 		terrain = getattr(self.model, "terrain", None)
-		if isinstance(terrain, np.ndarray):
-			neighbors = [cell for cell in neighbors if terrain[cell[1], cell[0]] != 1]
-
-		if not neighbors:
+		if not isinstance(terrain, np.ndarray):
+			self.move()
 			return
 
-		best_cell = max(
-			neighbors,
-			key=lambda cell: euclidean_distance(cell, threat.pos),
+		enemy_positions = [e.pos for e in visible_enemies if e.pos is not None]
+		if not enemy_positions:
+			self.move()
+			return
+
+		best_cell: tuple[int, int] | None = None
+		best_score = float("-inf")
+
+		search_radius = max(3, self.mobility + 1)
+		for dx in range(-search_radius, search_radius + 1):
+			for dy in range(-search_radius, search_radius + 1):
+				if dx == 0 and dy == 0:
+					continue
+				candidate = (self.pos[0] + dx, self.pos[1] + dy)
+				if not _is_position_valid(candidate, terrain):
+					continue
+
+				dist_from_enemies = min(
+					euclidean_distance(candidate, ep) for ep in enemy_positions
+				)
+
+				los_blocked = 0
+				for ep in enemy_positions:
+					if not has_line_of_sight(candidate, ep, terrain):
+						los_blocked += 1
+
+				cover = cover_ratio(candidate, terrain)
+
+				score = dist_from_enemies * 1.0 + los_blocked * 5.0 + cover * 8.0
+
+				if score > best_score:
+					best_score = score
+					best_cell = candidate
+
+		if best_cell is None:
+			self.move()
+			return
+
+		path = find_path(
+			start=self.pos,
+			goal=best_cell,
+			terrain=terrain,
+			algorithm=self.navigation_algorithm,
+			allow_diagonal=self.allow_diagonal_navigation,
 		)
+
+		if len(path) <= 1:
+			self._move_randomly()
+			return
+
+		step_index = min(self.mobility, len(path) - 1)
 		old_position = self.pos
-		self.model.grid.move_agent(self, best_cell)
-		dx = best_cell[0] - old_position[0]
-		dy = best_cell[1] - old_position[1]
-		if (dx, dy) != (0, 0):
-			self.facing_direction = (dx, dy)
+		new_position = path[step_index]
+		self.model.grid.move_agent(self, new_position)
+
+		if len(path) >= 2:
+			dx = path[1][0] - old_position[0]
+			dy = path[1][1] - old_position[1]
+			if (dx, dy) != (0, 0):
+				self.facing_direction = (dx, dy)
 
 	def _is_in_attack_range(self, target: "CombatAgent") -> bool:
 		distance = euclidean_distance(self.pos, target.pos)
@@ -427,6 +463,7 @@ class InfantrySquad(CombatAgent):
 		mobility: int = 2,
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
+		retreat_health_ratio: float = 0.30,
 	) -> None:
 		super().__init__(
 			model,
@@ -443,6 +480,7 @@ class InfantrySquad(CombatAgent):
 			mobility,
 			navigation_algorithm,
 			allow_diagonal_navigation,
+			retreat_health_ratio=retreat_health_ratio,
 		)
 
 
@@ -539,7 +577,7 @@ class MainBattleTank(CombatAgent):
 		team: str,
 		hp: int = 400,
 		firepower: int = 40,
-		observation_range: int = 10,
+		observation_range: int = 5,
 		attack_range: float = 12.0,
 		view_angle_deg: float = 90.0,
 		detection_threshold: float = 0.10,
@@ -549,6 +587,7 @@ class MainBattleTank(CombatAgent):
 		mobility: int = 3,
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
+		retreat_health_ratio: float = 0.30,
 	) -> None:
 		super().__init__(
 			model,
@@ -566,3 +605,12 @@ class MainBattleTank(CombatAgent):
 			navigation_algorithm,
 			allow_diagonal_navigation,
 		)
+
+
+def _is_position_valid(pos: tuple[int, int], terrain: np.ndarray) -> bool:
+	x, y = pos
+	if x < 0 or y < 0:
+		return False
+	if y >= terrain.shape[0] or x >= terrain.shape[1]:
+		return False
+	return int(terrain[y, x]) != 1
