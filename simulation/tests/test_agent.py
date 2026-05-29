@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import mesa
 import numpy as np
 
-from simulation.agent import CombatAgent
+from simulation.agent import CombatAgent, ReconSquad
 from simulation.model import BattlefieldModel
 
 
@@ -267,7 +267,157 @@ def test_retreat_does_not_abandon_outnumbered_allies() -> None:
 	)
 
 
-def test_retreat_group_coordination() -> None:
+def test_destructible_cover_obstacle_destroyed_by_fire() -> None:
+	board = np.zeros((6, 6), dtype=int)
+	board[4, 3] = 1
+	model = BattlefieldModel(board, obstacle_max_hp=20.0)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 4))
+
+	blue.attack_range = 5.0
+	blue.accuracy = 1.0
+	blue.firepower = 30
+
+	assert model.terrain[4, 3] == 1
+	assert model.obstacle_hp[4, 3] == 20.0
+
+	for _ in range(10):
+		if red.hp <= 0:
+			break
+		blue.attack(red)
+
+	assert model.obstacle_hp[4, 3] < 20.0, "Obstacle should take splash damage"
+
+
+def test_destructible_cover_terrain_becomes_walkable() -> None:
+	board = np.zeros((6, 6), dtype=int)
+	board[4, 2] = 1
+	model = BattlefieldModel(board, obstacle_max_hp=10.0)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 4))
+	red.hp = 500
+
+	blue.attack_range = 5.0
+	blue.accuracy = 1.0
+	blue.firepower = 50
+
+	for _ in range(10):
+		if red.hp <= 0:
+			break
+		blue.attack(red)
+
+	assert model.terrain[4, 2] == 0, "Obstacle at target should be destroyed"
+	assert model.destroyed_obstacles >= 1, "Destroyed obstacles should be counted"
+
+
+def test_reconsquad_retreat_different_scoring() -> None:
+	board = np.zeros((10, 10), dtype=int)
+	board[5, 3] = 1
+	board[5, 4] = 1
+	board[5, 5] = 1
+	model = BattlefieldModel(
+		board,
+		blue_unit_class=ReconSquad,
+		red_unit_class=CombatAgent,
+	)
+	recon = next(
+		a for a in model.agents if isinstance(a, ReconSquad) and a.team == "Blue"
+	)
+	infantry = CombatAgent(model, team="Red", hp=100)
+
+	enemy_positions = [(2, 8)]
+	ally_positions = []
+	group_centroid = None
+	max_map_dist = 10.0
+
+	test_pos = (5, 5)
+
+	recon_score = recon._score_retreat_cell(
+		test_pos, enemy_positions, ally_positions, group_centroid, max_map_dist
+	)
+	infantry_score = infantry._score_retreat_cell(
+		test_pos, enemy_positions, ally_positions, group_centroid, max_map_dist
+	)
+
+	assert recon_score != infantry_score, (
+		"ReconSquad should have different retreat scoring than base CombatAgent"
+	)
+	blue = next(
+		a for a in model.agents if isinstance(a, ReconSquad) and a.team == "Blue"
+	)
+	red = next(a for a in model.agents if isinstance(a, CombatAgent) and a.team == "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 6))
+
+	enemy_positions = [red.pos]
+	ally_positions = []
+	group_centroid = None
+	max_map_dist = 10.0
+
+	open_pos = (1, 2)
+	cover_pos = (4, 5)
+
+	open_score = blue._score_retreat_cell(
+		open_pos, enemy_positions, ally_positions, group_centroid, max_map_dist
+	)
+	cover_score = blue._score_retreat_cell(
+		cover_pos, enemy_positions, ally_positions, group_centroid, max_map_dist
+	)
+
+	assert cover_score > open_score, (
+		f"ReconSquad should prefer cover positions "
+		f"(cover={cover_score:.1f} vs open={open_score:.1f})"
+	)
+
+
+def test_reconsquad_earlier_retreat_threshold() -> None:
+	recon = ReconSquad(MagicMock(spec=mesa.Model), team="Blue")
+	infantry = CombatAgent(
+		MagicMock(spec=mesa.Model), team="Blue", hp=100, retreat_health_ratio=0.30
+	)
+
+	assert recon.retreat_health_ratio == 0.40, (
+		f"ReconSquad should retreat earlier (0.40), got {recon.retreat_health_ratio}"
+	)
+	assert infantry.retreat_health_ratio == 0.30, (
+		f"Base units should retreat at 0.30, got {infantry.retreat_health_ratio}"
+	)
+
+
+def test_reconsquad_cover_seeking_advance() -> None:
+	board = np.zeros((10, 10), dtype=int)
+	board[4, 3] = 1
+	board[4, 4] = 1
+	board[4, 5] = 1
+	model = BattlefieldModel(
+		board,
+		blue_unit_class=ReconSquad,
+		red_unit_class=CombatAgent,
+	)
+	recon = next(
+		a for a in model.agents if isinstance(a, ReconSquad) and a.team == "Blue"
+	)
+	red = next(a for a in model.agents if isinstance(a, CombatAgent) and a.team == "Red")
+
+	model.grid.move_agent(recon, (2, 2))
+	model.grid.move_agent(red, (2, 8))
+
+	recon.ai_state = "advance"
+	recon.mobility = 2
+	recon.move()
+
+	assert recon.pos is not None
+	assert recon.pos != (2, 2), "ReconSquad should move from starting position"
+
+
+def test_reconsquad_group_coordination() -> None:
 	board = np.zeros((16, 16), dtype=int)
 	model = BattlefieldModel(board)
 
