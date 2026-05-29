@@ -28,9 +28,10 @@ Modeled using finite-state machine utilizing states:
 
 ### Telemetry & analysis
 - `TelemetryCollector` — records model state, agent state, and combat events per step
-- Export to CSV and JSON
+- Export of per scenario data to CSV and JSON
 - `ScenarioAnalyzer` — 10 aggregate comparison charts
 - `ScenarioExplorer` — 6 per-scenario deep-dive charts (population, damage, AI states, events, HP trajectories)
+- Most of tweaks and fixes were based on the analysis of the results of 10 test scenarios created to check behaviour in different situations.
 
 ### Scenario runner
 - JSON-defined experiments with map, unit config, overrides, and repetitions
@@ -46,26 +47,26 @@ pip install -r requirements.txt
 ### Run a simulation
 
 ```bash
-python main.py                                          # 10x10 board, 1v1
-python main.py --steps 20                               # fixed steps
+python main.py                                           # 10x10 board, 1v1
+python main.py --steps 20                                # fixed steps
 python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3
 ```
 
 ### Run experimental scenarios
 
 ```bash
-python run_scenarios.py                                 # all 10 scenarios
+python run_scenarios.py                                  # all 10 scenarios
 python run_scenarios.py --scenario scenario_01           # specific scenario
 python run_scenarios.py --list                           # list available
 python run_scenarios.py --no-telemetry                   # skip telemetry export
 ```
 
 ### Generate analysis charts
-
+Charts are generated using data from scenarios, so running them beforehand is needed.
 ```bash
-python -m simulation.analysis                           # aggregate charts
-python -m simulation.analysis --explore                 # per-scenario charts
-python -m simulation.analysis --explore "H1"            # specific scenario
+python -m simulation.analysis                            # aggregate charts
+python -m simulation.analysis --explore                  # per-scenario charts
+python -m simulation.analysis --explore "H1"             # specific scenario
 ```
 
 ### Run tests
@@ -78,7 +79,7 @@ pytest -v --cov=simulation
 
 ```
 simulation/
-├── agent.py          # CombatAgent + InfantrySquad, ReconSquad, MechanizedInfantry, MainBattleTank
+├── agent.py          # CombatAgent and its subclasses
 ├── model.py          # BattlefieldModel (Mesa Model), obstacle HP tracking
 ├── utils.py          # Pathfinding, LoS, cover, hit/damage math, detection
 ├── telemetry.py      # Data recording and CSV/JSON export
