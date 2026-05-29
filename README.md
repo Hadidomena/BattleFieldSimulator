@@ -1,57 +1,97 @@
-# Description of Project
-This project was made as a part of my Engineering degree in Applied Computer Science.
+# BattleFieldSimulator
 
-# Features
-Current simulation mechanics and tools include:
-- Pathfinding (A* and Dijkstra) with terrain-aware movement costs.
-- Line of Sight (LoS) detection using Bresenham's algorithm and vision cone checks.
-- Finite-state tactical logic: patrol, advance, engage, and retreat.
-- Tactical unit classes in meso scale (squads and vehicles): infantry, recon, mechanized infantry, main battle tank.
-- Combat mechanics with hit probability, damage model, armor, and elimination rules.
-- Automated code formatting (`ruff`, `pre-commit`) and testing (`pytest` with coverage metrics).
+A meso-scale tactical combat simulator built with [Mesa](https://mesa.readthedocs.io/) agent-based modeling framework. Created as part of an Engineering degree in Applied Computer Science.
 
-# Used Resources
+## Features
 
-## Language
-This project was made with Python.
+### Unit classes
+- **InfantrySquad** — balanced all-rounder
+- **ReconSquad** — high mobility, wide vision (180°), low HP, early retreat (40%), cover-seeking AI
+- **MechanizedInfantry** — armoured transport with good firepower
+- **MainBattleTank** — heavy armour (0.60), massive HP (400), long-range cannon
 
-## Libraries
-Following libraries were used:
-- mesa
-- networkx
-- matplotlib
-- numpy
-- pandas
-- seaborn
+### Tactical AI 
+Modeled using finite-state machine utilizing states:
+- **advance** — move toward enemies using A*/Dijkstra pathfinding
+- **engage** — attack visible enemies in range; move + attack otherwise
+- **retreat** — scored-cell selection (distance, LoS breaks, cover, group cohesion), covering fire, group coordination, non-abandonment check
+- **patrol** — follow a predefined route, engage enemies on sight
 
-Additionally, development and testing tools include:
-- pytest & pytest-cov
-- ruff
-- pre-commit
-All of them have been added to the **requirements.txt**.
+### Combat mechanics
+- **Hit probability**: distance penalty, cover penalty, stability bonus from attacker cover
+- **Damage model**: range falloff, cover reduction, armour penetration, **flanking bonus (+50% outside vision cone)**
+- **Line of Sight**: Bresenham's algorithm with terrain obstacles
+- **Detection**: vision cone + LoS + range threshold per unit class
+- **Directional cover**: only obstacles between defender and attacker count
+- **Per-class cover multiplier**: Infantry/Recon 1.0, Mechanized 0.7, MBT 0.3
+- **Destructible cover**: obstacles have HP, take splash damage (50%) from hits, crumble when depleted
 
-# How to use
-To run the current simulation skeleton with an auto-generated 10x10 board containing some obstacles, simply execute:
+### Telemetry & analysis
+- `TelemetryCollector` — records model state, agent state, and combat events per step
+- Export to CSV and JSON
+- `ScenarioAnalyzer` — 10 aggregate comparison charts
+- `ScenarioExplorer` — 6 per-scenario deep-dive charts (population, damage, AI states, events, HP trajectories)
+
+### Scenario runner
+- JSON-defined experiments with map, unit config, overrides, and repetitions
+- 10 pre-built scenarios across 8 maps testing: unit balance, cover, detection, chokepoints, numerical superiority, mobility vs durability, retreat thresholds
+- Automated aggregation (win rates, KDR, DPS, survival) and telemetry export
+
+## Getting started
+
 ```bash
-python main.py
+pip install -r requirements.txt
 ```
 
-To run with fixed number of turns:
+### Run a simulation
+
 ```bash
-python main.py --steps 20
+python main.py                                          # 10x10 board, 1v1
+python main.py --steps 20                               # fixed steps
+python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3
 ```
 
-To run the larger example map with multiple units per team:
+### Run experimental scenarios
+
 ```bash
-python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3 --steps 20
+python run_scenarios.py                                 # all 10 scenarios
+python run_scenarios.py --scenario scenario_01           # specific scenario
+python run_scenarios.py --list                           # list available
+python run_scenarios.py --no-telemetry                   # skip telemetry export
 ```
 
-You can also load a custom board containing a matrix of 0s (empty) and 1s (obstacle walls) from a CSV or whitespace-delimited text file:
+### Generate analysis charts
+
 ```bash
-python main.py --map custom_board.csv
+python -m simulation.analysis                           # aggregate charts
+python -m simulation.analysis --explore                 # per-scenario charts
+python -m simulation.analysis --explore "H1"            # specific scenario
 ```
 
-To run the automated tests and check the code coverage:
+### Run tests
+
 ```bash
 pytest -v --cov=simulation
 ```
+
+## Project structure
+
+```
+simulation/
+├── agent.py          # CombatAgent + InfantrySquad, ReconSquad, MechanizedInfantry, MainBattleTank
+├── model.py          # BattlefieldModel (Mesa Model), obstacle HP tracking
+├── utils.py          # Pathfinding, LoS, cover, hit/damage math, detection
+├── telemetry.py      # Data recording and CSV/JSON export
+├── analysis.py       # ScenarioAnalyzer + ScenarioExplorer (charts)
+└── tests/            # Unit tests (pytest)
+
+data/scenarios/
+├── maps/             # CSV map grids (0=open, 1=obstacle)
+├── scenario_*.json   # Experiment definitions
+├── results/          # Telemetry output (per run)
+└── analysis/         # Generated chart images
+```
+
+## Maps
+
+Map files are CSV grids where `0` = open terrain (cost 1.0) and `1` = obstacle (impassable, blocks LoS, provides cover). Other positive values represent rough terrain with elevated movement cost. Obstacles can be destroyed by sustained fire (destructible cover).
