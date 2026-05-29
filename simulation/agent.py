@@ -162,6 +162,49 @@ class CombatAgent(mesa.Agent):
 			return False
 		return self.attack(target, accuracy_override=self.accuracy * 0.35)
 
+	def _score_retreat_cell(
+		self,
+		candidate: tuple[int, int],
+		enemy_positions: list[tuple[int, int]],
+		ally_positions: list[tuple[int, int]],
+		group_centroid: tuple[float, float] | None,
+		max_map_dist: float,
+	) -> float:
+		terrain = getattr(self.model, "terrain", None)
+		if terrain is None:
+			return float("-inf")
+
+		dist_from_enemies = min(
+			euclidean_distance(candidate, ep) for ep in enemy_positions
+		)
+
+		los_blocked = 0
+		for ep in enemy_positions:
+			if not has_line_of_sight(candidate, ep, terrain):
+				los_blocked += 1
+
+		cover = cover_ratio(candidate, terrain)
+
+		nearby_allies_at_cell = 0
+		for ap in ally_positions:
+			if euclidean_distance(candidate, ap) <= self.attack_range:
+				nearby_allies_at_cell += 1
+
+		group_cohesion = 0.0
+		if group_centroid is not None:
+			dg = euclidean_distance(candidate, group_centroid)
+			group_cohesion = max(0.0, 1.0 - dg / self.observation_range)
+
+		normalized_dist = dist_from_enemies / max_map_dist
+
+		return (
+			normalized_dist * 10.0
+			+ los_blocked * 5.0
+			+ cover * 8.0
+			+ nearby_allies_at_cell * 3.0
+			+ group_cohesion * 5.0
+		)
+
 	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:  # noqa: C901
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
@@ -220,38 +263,12 @@ class CombatAgent(mesa.Agent):
 				if not _is_position_valid(candidate, terrain):
 					continue
 
-				dist_from_enemies = min(
-					euclidean_distance(candidate, ep) for ep in enemy_positions
-				)
-
-				los_blocked = 0
-				for ep in enemy_positions:
-					if not has_line_of_sight(candidate, ep, terrain):
-						los_blocked += 1
-
-				cover = cover_ratio(candidate, terrain)
-
-				nearby_allies_at_cell = 0
-				for ap in ally_positions:
-					if euclidean_distance(candidate, ap) <= self.attack_range:
-						nearby_allies_at_cell += 1
-
-				group_cohesion = 0.0
-				if group_centroid is not None:
-					dg = euclidean_distance(candidate, group_centroid)
-					group_cohesion = max(
-						0.0,
-						1.0 - dg / self.observation_range,
-					)
-
-				normalized_dist = dist_from_enemies / max_map_dist
-
-				score = (
-					normalized_dist * 10.0
-					+ los_blocked * 5.0
-					+ cover * 8.0
-					+ nearby_allies_at_cell * 3.0
-					+ group_cohesion * 5.0
+				score = self._score_retreat_cell(
+					candidate,
+					enemy_positions,
+					ally_positions,
+					group_centroid,
+					max_map_dist,
 				)
 
 				if score > best_score:
@@ -375,6 +392,8 @@ class CombatAgent(mesa.Agent):
 			flanking_multiplier=flanking_multiplier,
 		)
 
+		if hasattr(self.model, "apply_obstacle_damage") and target.pos is not None:
+			self.model.apply_obstacle_damage(target.pos, damage, self.team)
 		target.receive_damage(damage, attacker=self)
 		if hasattr(self.model, "record_attack"):
 			self.model.record_attack(
@@ -606,7 +625,8 @@ class InfantrySquad(CombatAgent):
 class ReconSquad(CombatAgent):
 	"""
 	Recon Squad which is worse in sustained contact,
-	but faster
+	but faster. Uses cover and LoS breaks to avoid
+	combat longer.
 	"""
 
 	def __init__(
@@ -625,6 +645,7 @@ class ReconSquad(CombatAgent):
 		mobility: int = 3,
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
+		retreat_health_ratio: float = 0.40,
 		cover_multiplier: float = 1.0,
 	) -> None:
 		super().__init__(
@@ -642,8 +663,119 @@ class ReconSquad(CombatAgent):
 			mobility,
 			navigation_algorithm,
 			allow_diagonal_navigation,
+			retreat_health_ratio=retreat_health_ratio,
 			cover_multiplier=cover_multiplier,
 		)
+
+	def _score_retreat_cell(
+		self,
+		candidate: tuple[int, int],
+		enemy_positions: list[tuple[int, int]],
+		ally_positions: list[tuple[int, int]],
+		group_centroid: tuple[float, float] | None,
+		max_map_dist: float,
+	) -> float:
+		terrain = getattr(self.model, "terrain", None)
+		if terrain is None:
+			return float("-inf")
+
+		dist_from_enemies = min(
+			euclidean_distance(candidate, ep) for ep in enemy_positions
+		)
+
+		los_blocked = 0
+		for ep in enemy_positions:
+			if not has_line_of_sight(candidate, ep, terrain):
+				los_blocked += 1
+
+		cover = cover_ratio(candidate, terrain)
+
+		nearby_allies_at_cell = 0
+		for ap in ally_positions:
+			if euclidean_distance(candidate, ap) <= self.attack_range:
+				nearby_allies_at_cell += 1
+
+		group_cohesion = 0.0
+		if group_centroid is not None:
+			dg = euclidean_distance(candidate, group_centroid)
+			group_cohesion = max(0.0, 1.0 - dg / self.observation_range)
+
+		normalized_dist = dist_from_enemies / max_map_dist
+
+		return (
+			normalized_dist * 10.0
+			+ los_blocked * 8.0
+			+ cover * 12.0
+			+ nearby_allies_at_cell * 1.0
+			+ group_cohesion * 3.0
+		)
+
+	def _find_cover_waypoint(
+		self, target_pos: tuple[int, int]
+	) -> tuple[int, int] | None:
+		terrain = getattr(self.model, "terrain", None)
+		if terrain is None:
+			return None
+
+		search_radius = max(3, self.mobility + 1)
+		best_pos: tuple[int, int] | None = None
+		best_score = float("-inf")
+		current_dist = euclidean_distance(self.pos, target_pos)
+
+		for dx in range(-search_radius, search_radius + 1):
+			for dy in range(-search_radius, search_radius + 1):
+				candidate = (self.pos[0] + dx, self.pos[1] + dy)
+				if not _is_position_valid(candidate, terrain):
+					continue
+				if candidate == self.pos:
+					continue
+
+				cover = cover_ratio(candidate, terrain)
+				cand_dist = euclidean_distance(candidate, target_pos)
+
+				if cand_dist >= current_dist and cover <= 0:
+					continue
+
+				progress = max(0, current_dist - cand_dist) / max(1, current_dist)
+				score = cover * 12.0 + progress * 5.0
+
+				if score > best_score:
+					best_score = score
+					best_pos = candidate
+
+		return best_pos
+
+	def move(self, target_position: tuple[int, int] | None = None) -> None:
+		if target_position is not None:
+			super().move(target_position)
+			return
+
+		if self.ai_state in ("advance", "engage"):
+			navigation_target = self._get_navigation_target()
+			if navigation_target is not None:
+				cover_pos = self._find_cover_waypoint(navigation_target)
+				if cover_pos is not None:
+					super().move(cover_pos)
+					return
+
+		super().move(target_position)
+
+	def update_behavior_state(self, visible_enemies: list["CombatAgent"]) -> None:
+		has_visible_enemy = len(visible_enemies) > 0
+		health_ratio = self.hp / max(1, self.max_hp)
+
+		if has_visible_enemy and health_ratio <= self.retreat_health_ratio:
+			self.ai_state = "retreat"
+			return
+
+		if has_visible_enemy:
+			self.ai_state = "engage"
+			return
+
+		if self.patrol_route:
+			self.ai_state = "patrol"
+		else:
+			self.ai_state = "advance"
 
 
 class MechanizedInfantry(CombatAgent):
