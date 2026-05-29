@@ -15,11 +15,12 @@ class BattlefieldModel(mesa.Model):
 		red_unit_kwargs: dict | None = None,
 		blue_spawn_points: list[tuple[int, int]] | None = None,
 		red_spawn_points: list[tuple[int, int]] | None = None,
+		obstacle_max_hp: float = 50.0,
 	) -> None:
 		super().__init__()
 		self.width = board.shape[1]
 		self.height = board.shape[0]
-		self.terrain = board
+		self.terrain = board.copy()
 		self.blue_unit_class = blue_unit_class
 		self.red_unit_class = red_unit_class
 		self.blue_unit_kwargs = blue_unit_kwargs or {}
@@ -32,6 +33,11 @@ class BattlefieldModel(mesa.Model):
 		self.shots_by_team = {"Blue": 0, "Red": 0}
 		self.hits_by_team = {"Blue": 0, "Red": 0}
 		self.damage_by_team = {"Blue": 0, "Red": 0}
+		self.obstacle_max_hp = obstacle_max_hp
+		self.obstacle_hp = np.zeros_like(board, dtype=float)
+		self.obstacle_hp[board == 1] = obstacle_max_hp
+		self.destroyed_obstacles = 0
+		self.destroyed_obstacles_by_team: dict[str, int] = {"Blue": 0, "Red": 0}
 		self.datacollector = mesa.DataCollector(
 			model_reporters={
 				"Alive_Blue": lambda m: sum(
@@ -50,6 +56,7 @@ class BattlefieldModel(mesa.Model):
 				"Kills_Red": lambda m: m.kills_by_team["Red"],
 				"Damage_Blue": lambda m: m.damage_by_team["Blue"],
 				"Damage_Red": lambda m: m.damage_by_team["Red"],
+				"Destroyed_Obstacles": lambda m: m.destroyed_obstacles,
 			},
 			agent_reporters={"HP": "hp"},
 		)
@@ -58,6 +65,35 @@ class BattlefieldModel(mesa.Model):
 		self._init_board(board)
 		self.telemetry.record_step(self)
 		self.running = True
+
+	def apply_obstacle_damage(
+		self, pos: tuple[int, int], damage: float, attacker_team: str | None = None
+	) -> None:
+		x, y = pos
+		for dx in (-1, 0, 1):
+			for dy in (-1, 0, 1):
+				nx, ny = x + dx, y + dy
+				if not (0 <= ny < self.height and 0 <= nx < self.width):
+					continue
+				if self.terrain[ny, nx] != 1:
+					continue
+				if self.obstacle_hp[ny, nx] <= 0:
+					continue
+
+				splash = damage * 0.5
+				if dx == 0 and dy == 0:
+					splash = damage
+
+				self.obstacle_hp[ny, nx] -= splash
+				if self.obstacle_hp[ny, nx] <= 0:
+					self.terrain[ny, nx] = 0
+					self.obstacle_hp[ny, nx] = 0
+					self.destroyed_obstacles += 1
+					if (
+						attacker_team is not None
+						and attacker_team in self.destroyed_obstacles_by_team
+					):
+						self.destroyed_obstacles_by_team[attacker_team] += 1
 
 	def _init_board(self, board: np.ndarray) -> None:
 		"""
