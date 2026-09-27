@@ -73,12 +73,12 @@ class CombatAgent(mesa.Agent):
 		self.update_behavior_state(visible_before_move)
 
 		if self.ai_state == "retreat":
-			if not self._covering_fire(visible_before_move):
-				self._covering_fire_suppress(visible_before_move)
 			self.retreat(visible_before_move)
 		elif self.ai_state == "engage":
-			engaged = self.attack_closest_target(visible_before_move)
-			if not engaged:
+			target = self._pick_attack_target(visible_before_move)
+			if target is not None:
+				self.attack(target)
+			else:
 				self.move()
 				visible_after_move = self.get_visible_enemies()
 				self.attack_closest_target(visible_after_move)
@@ -155,12 +155,6 @@ class CombatAgent(mesa.Agent):
 		if target is None:
 			return False
 		return self.attack(target, accuracy_override=self.accuracy * 0.5)
-
-	def _covering_fire_suppress(self, visible_enemies: list["CombatAgent"]) -> bool:
-		target = self._pick_attack_target(visible_enemies)
-		if target is None:
-			return False
-		return self.attack(target, accuracy_override=self.accuracy * 0.35)
 
 	def _score_retreat_cell(
 		self,
