@@ -128,12 +128,52 @@ def test_move_uses_pathfinding_to_bypass_obstacle_wall() -> None:
 	blue.mobility = 1
 	blue.navigation_algorithm = "a_star"
 	blue.allow_diagonal_navigation = False
+	blue.last_known_enemy_pos = red.pos
 
 	blue.move()
 
 	assert blue.pos == (1, 2)
 	assert blue.current_path[0] == (1, 3)
 	assert blue.current_path[-1] == (5, 3)
+
+
+def test_navigation_falls_back_to_map_center_without_detection() -> None:
+	board = np.zeros((20, 20), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (1, 1))
+	model.grid.move_agent(red, (18, 18))
+
+	blue.view_angle_deg = 90.0
+	blue.facing_direction = (0, -1)
+	blue.observation_range = 3
+	blue.detection_threshold = 0.1
+
+	assert blue.get_visible_enemies() == []
+	assert blue._get_navigation_target() == (10, 10)
+
+
+def test_navigation_remembers_last_known_enemy_position() -> None:
+	board = np.zeros((20, 20), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (5, 5))
+	model.grid.move_agent(red, (6, 5))
+
+	blue.view_angle_deg = 360.0
+	blue.observation_range = 5
+	assert red in blue.get_visible_enemies()
+	seen_pos = red.pos
+
+	model.grid.move_agent(red, (19, 19))
+	blue.observation_range = 1
+
+	assert blue.get_visible_enemies() == []
+	assert blue._get_navigation_target() == seen_pos
 
 
 def test_attack_reduces_enemy_hp() -> None:

@@ -49,13 +49,14 @@ class CombatAgent(mesa.Agent):
 		self.detection_threshold = detection_threshold
 		self.accuracy = accuracy
 		self.armor = armor
-		self.facing_direction = facing_direction
+		self.facing_direction = tuple(facing_direction)
 		self.mobility = mobility
 		self.navigation_algorithm = navigation_algorithm
 		self.allow_diagonal_navigation = allow_diagonal_navigation
 		self.retreat_health_ratio = retreat_health_ratio
 		self.cover_multiplier = cover_multiplier
 		self.last_detection_scores: dict[int, float] = {}
+		self.last_known_enemy_pos: tuple[int, int] | None = None
 		self.current_path: list[tuple[int, int]] = []
 		self.last_damage_dealt: int = 0
 		self.last_damage_taken: int = 0
@@ -460,7 +461,13 @@ class CombatAgent(mesa.Agent):
 		self.last_detection_scores = {
 			agent.unique_id: score for agent, score in enemies_with_score
 		}
-		return [agent for agent, _ in enemies_with_score]
+		visible_enemies = [agent for agent, _ in enemies_with_score]
+		if visible_enemies:
+			self.last_known_enemy_pos = min(
+				visible_enemies,
+				key=lambda enemy: euclidean_distance(self.pos, enemy.pos),
+			).pos
+		return visible_enemies
 
 	def get_visible_cells(self) -> set[tuple[int, int]]:
 		return visible_cells(
@@ -471,22 +478,6 @@ class CombatAgent(mesa.Agent):
 			view_angle_deg=self.view_angle_deg,
 		)
 
-	def _get_alive_enemy_agents(self) -> list["CombatAgent"]:
-		try:
-			agents = list(self.model.agents)
-		except TypeError:
-			return []
-
-		return [
-			agent
-			for agent in agents
-			if (
-				isinstance(agent, CombatAgent)
-				and agent.team != self.team
-				and agent.hp > 0
-			)
-		]
-
 	def _get_navigation_target(self) -> tuple[int, int] | None:
 		if self.patrol_route:
 			return self.patrol_route[self.patrol_index]
@@ -495,14 +486,16 @@ class CombatAgent(mesa.Agent):
 		if visible_enemies:
 			return visible_enemies[0].pos
 
-		enemies = self._get_alive_enemy_agents()
-		if not enemies:
-			return None
+		if self.last_known_enemy_pos is not None:
+			return self.last_known_enemy_pos
 
-		return min(
-			enemies,
-			key=lambda enemy: euclidean_distance(self.pos, enemy.pos),
-		).pos
+		return self._map_center()
+
+	def _map_center(self) -> tuple[int, int] | None:
+		terrain = getattr(self.model, "terrain", None)
+		if not isinstance(terrain, np.ndarray):
+			return None
+		return (terrain.shape[1] // 2, terrain.shape[0] // 2)
 
 	def _move_randomly(self) -> None:
 		if self.mobility <= 0:

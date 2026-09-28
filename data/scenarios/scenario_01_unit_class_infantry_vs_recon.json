@@ -5,13 +5,21 @@
     "map": "data/scenarios/maps/open_field_20x20.csv",
     "blue_team": {
         "units": [
-            {"class": "InfantrySquad", "count": 1}
+            {
+                "class": "InfantrySquad",
+                "count": 1,
+                "overrides": {"facing_direction": [1, 0]}
+            }
         ],
         "spawn_points": [[1, 9]]
     },
     "red_team": {
         "units": [
-            {"class": "ReconSquad", "count": 1}
+            {
+                "class": "ReconSquad",
+                "count": 1,
+                "overrides": {"facing_direction": [-1, 0]}
+            }
         ],
         "spawn_points": [[18, 9]]
     },
