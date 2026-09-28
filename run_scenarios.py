@@ -80,6 +80,8 @@ def build_model_from_scenario(scenario: dict) -> BattlefieldModel:
 	_reconfigure_agents(model, "Blue", blue_config)
 	_reconfigure_agents(model, "Red", red_config)
 
+	model.telemetry.reset()
+	model.telemetry.record_step(model)
 	return model
 
 
