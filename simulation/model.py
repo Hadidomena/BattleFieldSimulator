@@ -95,14 +95,30 @@ class BattlefieldModel(mesa.Model):
 					):
 						self.destroyed_obstacles_by_team[attacker_team] += 1
 
+	def _validate_spawn_points(
+		self, positions: list[tuple[int, int]], team: str
+	) -> None:
+		for position in positions:
+			x, y = position
+			if not (0 <= x < self.width and 0 <= y < self.height):
+				raise ValueError(
+					f"{team} spawn point {position} is out of bounds for a "
+					f"{self.width}x{self.height} map"
+				)
+			if self.terrain[y, x] == 1:
+				raise ValueError(
+					f"{team} spawn point {position} is on an obstacle "
+					f"(terrain == 1) and cannot be walked on"
+				)
+
 	def _init_board(self, board: np.ndarray) -> None:
-		"""
-		TODO: Expand terrain logic
-		"""
 		default_blue_spawn = [(3, 1)]
 		default_red_spawn = [(3, 5)]
 		blue_positions = self.blue_spawn_points or default_blue_spawn
 		red_positions = self.red_spawn_points or default_red_spawn
+
+		self._validate_spawn_points(blue_positions, "Blue")
+		self._validate_spawn_points(red_positions, "Red")
 
 		for spawn_position in blue_positions:
 			blue_agent = self.blue_unit_class(

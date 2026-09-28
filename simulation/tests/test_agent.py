@@ -325,6 +325,8 @@ def test_reconsquad_retreat_different_scoring() -> None:
 		board,
 		blue_unit_class=ReconSquad,
 		red_unit_class=CombatAgent,
+		blue_spawn_points=[(2, 2)],
+		red_spawn_points=[(2, 6)],
 	)
 	recon = next(
 		a for a in model.agents if isinstance(a, ReconSquad) and a.team == "Blue"
