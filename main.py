@@ -109,6 +109,12 @@ def main() -> None:
 		choices=["csv", "json", "both"],
 		help=("Export format for telemetry data (default: both)"),
 	)
+	parser.add_argument(
+		"--seed",
+		type=int,
+		default=None,
+		help=("Seed for the random number generator (default: random)"),
+	)
 	args = parser.parse_args()
 
 	if args.map:
@@ -127,6 +133,7 @@ def main() -> None:
 		board,
 		blue_spawn_points=blue_spawn_points,
 		red_spawn_points=red_spawn_points,
+		seed=args.seed,
 	)
 
 	num_steps = _resolve_step_count(args.steps)

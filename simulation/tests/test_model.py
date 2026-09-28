@@ -23,6 +23,23 @@ def test_model_initialization(basic_board: np.ndarray) -> None:
 	assert "Red" in teams
 
 
+def test_model_seed_makes_runs_reproducible(basic_board: np.ndarray) -> None:
+	first = BattlefieldModel(basic_board, seed=42)
+	second = BattlefieldModel(basic_board, seed=42)
+
+	assert first.rng.random() == second.rng.random()
+	assert first.random.random() == second.random.random()
+
+	for _ in range(10):
+		if not first.running and not second.running:
+			break
+		first.step()
+		second.step()
+
+	assert first.telemetry.model_records == second.telemetry.model_records
+	assert first.telemetry.agent_records == second.telemetry.agent_records
+
+
 def test_model_step(basic_board: np.ndarray) -> None:
 	model = BattlefieldModel(basic_board)
 	model.step()

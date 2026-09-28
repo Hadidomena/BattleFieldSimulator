@@ -49,6 +49,7 @@ pip install -r requirements.txt
 ```bash
 python main.py                                           # 10x10 board, 1v1
 python main.py --steps 20                                # fixed steps
+python main.py --seed 42                                 # reproducible run
 python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3
 ```
 
@@ -57,6 +58,7 @@ python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3
 ```bash
 python run_scenarios.py                                  # all 10 scenarios
 python run_scenarios.py --scenario scenario_01           # specific scenario
+python run_scenarios.py --seed 42                        # reproducible runs
 python run_scenarios.py --list                           # list available
 python run_scenarios.py --no-telemetry                   # skip telemetry export
 ```

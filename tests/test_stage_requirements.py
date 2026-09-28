@@ -87,6 +87,7 @@ def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
 			board: np.ndarray,
 			blue_spawn_points=None,
 			red_spawn_points=None,
+			seed=None,
 		) -> None:
 			self.board = board
 			self.step_calls = 0
@@ -95,6 +96,7 @@ def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
 			self.telemetry = FakeTelmetry()
 			self.blue_spawn_points = blue_spawn_points
 			self.red_spawn_points = red_spawn_points
+			self.seed = seed
 			FakeBattlefieldModel.instances.append(self)
 
 		def step(self) -> None:

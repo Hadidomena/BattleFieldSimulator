@@ -16,8 +16,9 @@ class BattlefieldModel(mesa.Model):
 		blue_spawn_points: list[tuple[int, int]] | None = None,
 		red_spawn_points: list[tuple[int, int]] | None = None,
 		obstacle_max_hp: float = 50.0,
+		seed: int | None = None,
 	) -> None:
-		super().__init__()
+		super().__init__(rng=seed)
 		self.width = board.shape[1]
 		self.height = board.shape[0]
 		self.terrain = board.copy()
