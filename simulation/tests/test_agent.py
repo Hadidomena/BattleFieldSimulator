@@ -264,6 +264,27 @@ def test_attack_can_eliminate_and_remove_agent() -> None:
 	assert model.kills_by_team["Blue"] == 1
 
 
+def test_attack_damage_is_clamped_to_remaining_hp() -> None:
+	board = np.zeros((6, 6), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 2))
+
+	blue.attack_range = 4.0
+	blue.accuracy = 1.0
+	blue.firepower = 100
+	red.hp = 5
+
+	blue.attack(red)
+
+	assert red.hp == 0
+	assert model.damage_by_team["Blue"] == 5
+	assert blue.last_damage_dealt == 5
+
+
 def test_attack_with_accuracy_override() -> None:
 	board = np.zeros((6, 6), dtype=int)
 	model = BattlefieldModel(board)

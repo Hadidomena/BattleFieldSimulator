@@ -389,26 +389,26 @@ class CombatAgent(mesa.Agent):
 
 		if hasattr(self.model, "apply_obstacle_damage") and target.pos is not None:
 			self.model.apply_obstacle_damage(target.pos, damage, self.team)
-		target.receive_damage(damage, attacker=self)
+		effective_damage = target.receive_damage(damage, attacker=self)
 		if hasattr(self.model, "record_attack"):
 			self.model.record_attack(
 				self.team,
 				hit=True,
-				damage=damage,
+				damage=effective_damage,
 				attacker_id=self.unique_id,
 				defender_id=target.unique_id,
 				defender_team=target.team,
 			)
-		self.last_damage_dealt = damage
+		self.last_damage_dealt = effective_damage
 		return True
 
-	def receive_damage(self, amount: int, attacker: "CombatAgent" | None = None) -> None:
+	def receive_damage(self, amount: int, attacker: "CombatAgent" | None = None) -> int:
 		if self.hp <= 0:
-			return
+			return 0
 
-		damage = max(0, int(amount))
+		damage = min(max(0, int(amount)), self.hp)
 		self.last_damage_taken = damage
-		self.hp = max(0, self.hp - damage)
+		self.hp -= damage
 
 		if attacker is not None:
 			self._last_attacker_id = attacker.unique_id
@@ -416,6 +416,8 @@ class CombatAgent(mesa.Agent):
 		if self.hp == 0:
 			killer_team = attacker.team if attacker else None
 			self.eliminate(killer_team)
+
+		return damage
 
 	def eliminate(self, killer_team: str | None = None) -> None:
 		self.hp = 0
