@@ -1,9 +1,12 @@
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 
 from simulation.model import BattlefieldModel
+
+DEFAULT_STEPS = 10
 
 
 def _default_spawn_points(
@@ -41,6 +44,23 @@ def load_board(path: str) -> np.ndarray:
 	except Exception:
 		board = np.loadtxt(p, dtype=int)
 	return board
+
+
+def _resolve_step_count(steps: int) -> int:
+	if steps >= 0:
+		return steps
+
+	if sys.stdin.isatty():
+		while True:
+			try:
+				return int(input("How many steps should the simulation run for? "))
+			except ValueError:
+				print("Please enter a whole number.")
+			except EOFError:
+				break
+
+	print(f"No step count provided; defaulting to {DEFAULT_STEPS} steps.")
+	return DEFAULT_STEPS
 
 
 def main() -> None:
@@ -109,12 +129,7 @@ def main() -> None:
 		red_spawn_points=red_spawn_points,
 	)
 
-	args.steps = (
-		input("How many steps should the simulation run for? ")
-		if args.steps == -1
-		else args.steps
-	)
-	num_steps = int(args.steps)
+	num_steps = _resolve_step_count(args.steps)
 
 	print(f"Running simulation for {num_steps} steps...\n")
 	for i in range(num_steps):
