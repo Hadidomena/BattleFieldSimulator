@@ -254,19 +254,13 @@ def cover_ratio(
 		neighbors.extend([(-1, -1), (-1, 1), (1, -1), (1, 1)])
 
 	blocked = 0
-	considered = 0
 	for dx, dy in neighbors:
 		nx = x + dx
 		ny = y + dy
-		if not is_position_in_bounds((nx, ny), terrain):
-			continue
-		considered += 1
-		if terrain[ny, nx] == 1:
+		if is_position_in_bounds((nx, ny), terrain) and terrain[ny, nx] == 1:
 			blocked += 1
 
-	if considered == 0:
-		return 0.0
-	return blocked / considered
+	return blocked / len(neighbors)
 
 
 def directional_cover_ratio(

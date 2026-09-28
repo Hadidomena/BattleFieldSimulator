@@ -114,6 +114,17 @@ def test_cover_ratio_increases_near_obstacles() -> None:
 	assert high_cover > low_cover
 
 
+def test_cover_ratio_has_no_map_edge_bias() -> None:
+	terrain = np.zeros((7, 7), dtype=int)
+	terrain[1, 1] = 1
+
+	corner = cover_ratio((0, 0), terrain)
+	interior = cover_ratio((2, 2), terrain)
+
+	assert corner == interior == 1 / 8
+	assert cover_ratio((0, 0), np.zeros((7, 7), dtype=int)) == 0.0
+
+
 def test_hit_probability_decreases_with_distance_and_cover() -> None:
 	close_open = hit_probability(1.0, 5.0, 0.8, 0.0)
 	far_open = hit_probability(5.0, 5.0, 0.8, 0.0)

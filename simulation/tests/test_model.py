@@ -61,7 +61,9 @@ def test_datacollector_records_post_step_state(basic_board: np.ndarray) -> None:
 	blue.accuracy = 1.0
 	blue.attack_range = 4.0
 	blue.firepower = 50
+	blue.view_angle_deg = 360.0
 	red.hp = 10
+	red.retreat_health_ratio = 0.0
 
 	model.step()
 
