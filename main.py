@@ -139,7 +139,9 @@ def main() -> None:
 	num_steps = _resolve_step_count(args.steps)
 
 	print(f"Running simulation for {num_steps} steps...\n")
-	for i in range(num_steps):
+	for _ in range(num_steps):
+		if not model.running:
+			break
 		model.step()
 
 	print("\nResults (Analytics Module)")

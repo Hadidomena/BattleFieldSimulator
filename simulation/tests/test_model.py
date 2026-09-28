@@ -50,6 +50,26 @@ def test_model_step(basic_board: np.ndarray) -> None:
 	assert df["Alive_Red"].iloc[0] == 1
 
 
+def test_datacollector_records_post_step_state(basic_board: np.ndarray) -> None:
+	model = BattlefieldModel(basic_board)
+	blue = next(a for a in model.agents if a.team == "Blue")
+	red = next(a for a in model.agents if a.team == "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 2))
+
+	blue.accuracy = 1.0
+	blue.attack_range = 4.0
+	blue.firepower = 50
+	red.hp = 10
+
+	model.step()
+
+	df = model.datacollector.get_model_vars_dataframe()
+	assert df["Alive_Red"].iloc[-1] == 0
+	assert model.running is False
+
+
 def test_model_collects_combat_stats(basic_board: np.ndarray) -> None:
 	model = BattlefieldModel(basic_board)
 	blue = next(

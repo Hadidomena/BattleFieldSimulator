@@ -204,7 +204,7 @@ class BattlefieldModel(mesa.Model):
 		)
 
 	def step(self) -> None:
-		self.datacollector.collect(self)
 		self.agents.shuffle_do("step")
+		self.datacollector.collect(self)
 		self.telemetry.record_step(self)
 		self.running = not self.is_battle_over()
