@@ -371,6 +371,34 @@ def test_retreat_does_not_abandon_outnumbered_allies() -> None:
 	)
 
 
+def test_retreat_ignores_unreachable_cells() -> None:
+	board = np.zeros((10, 10), dtype=int)
+	for y in range(3):
+		board[y, 3] = 1
+	for x in range(3):
+		board[3, x] = 1
+
+	model = BattlefieldModel(
+		board,
+		blue_spawn_points=[(5, 5)],
+		red_spawn_points=[(8, 8)],
+	)
+	blue = _agent_by_team(model, "Blue")
+
+	assert (1, 1) not in blue._reachable_cells(model.terrain)
+
+	blue.view_angle_deg = 360.0
+	blue.observation_range = 20
+	blue._score_retreat_cell = lambda candidate, *args: (
+		100.0 if candidate == (1, 1) else 1.0
+	)
+	blue._move_randomly = MagicMock()
+
+	blue.retreat(blue.get_visible_enemies())
+
+	assert not blue._move_randomly.called
+
+
 def test_destructible_cover_obstacle_destroyed_by_fire() -> None:
 	board = np.zeros((6, 6), dtype=int)
 	board[4, 3] = 1

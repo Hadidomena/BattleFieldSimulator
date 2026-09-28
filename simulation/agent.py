@@ -12,6 +12,7 @@ from simulation.utils import (
 	directional_cover_ratio,
 	euclidean_distance,
 	find_path,
+	get_walkable_neighbors,
 	has_line_of_sight,
 	hit_probability,
 	is_in_vision_cone,
@@ -200,6 +201,22 @@ class CombatAgent(mesa.Agent):
 			+ group_cohesion * 5.0
 		)
 
+	def _reachable_cells(self, terrain: np.ndarray) -> set[tuple[int, int]]:
+		if self.pos is None:
+			return set()
+
+		reachable = {self.pos}
+		frontier = [self.pos]
+		while frontier:
+			current = frontier.pop()
+			for neighbor in get_walkable_neighbors(
+				current, terrain, self.allow_diagonal_navigation
+			):
+				if neighbor not in reachable:
+					reachable.add(neighbor)
+					frontier.append(neighbor)
+		return reachable
+
 	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:  # noqa: C901
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
@@ -250,12 +267,15 @@ class CombatAgent(mesa.Agent):
 		)
 
 		search_radius = max(4, self.mobility + 2)
+		reachable = self._reachable_cells(terrain)
 		for dx in range(-search_radius, search_radius + 1):
 			for dy in range(-search_radius, search_radius + 1):
 				if dx == 0 and dy == 0:
 					continue
 				candidate = (self.pos[0] + dx, self.pos[1] + dy)
 				if not _is_position_valid(candidate, terrain):
+					continue
+				if candidate not in reachable:
 					continue
 
 				score = self._score_retreat_cell(
