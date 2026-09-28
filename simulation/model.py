@@ -137,6 +137,11 @@ class BattlefieldModel(mesa.Model):
 			)
 			self.grid.place_agent(red_agent, spawn_position)
 
+	def broadcast_sighting(self, team: str, position: tuple[int, int]) -> None:
+		for agent in self.agents:
+			if isinstance(agent, CombatAgent) and agent.team == team and agent.hp > 0:
+				agent.last_known_enemy_pos = position
+
 	def is_battle_over(self) -> bool:
 		alive_blue = sum(
 			1

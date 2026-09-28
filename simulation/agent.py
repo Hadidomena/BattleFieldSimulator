@@ -467,6 +467,8 @@ class CombatAgent(mesa.Agent):
 				visible_enemies,
 				key=lambda enemy: euclidean_distance(self.pos, enemy.pos),
 			).pos
+			if hasattr(self.model, "broadcast_sighting"):
+				self.model.broadcast_sighting(self.team, self.last_known_enemy_pos)
 		return visible_enemies
 
 	def get_visible_cells(self) -> set[tuple[int, int]]:
@@ -489,13 +491,27 @@ class CombatAgent(mesa.Agent):
 		if self.last_known_enemy_pos is not None:
 			return self.last_known_enemy_pos
 
-		return self._map_center()
+		return self._advance_target()
 
-	def _map_center(self) -> tuple[int, int] | None:
+	def _advance_target(self) -> tuple[int, int] | None:
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
 			return None
-		return (terrain.shape[1] // 2, terrain.shape[0] // 2)
+
+		height, width = terrain.shape
+		center_x, center_y = width // 2, height // 2
+		if terrain[center_y, center_x] != 1:
+			return (center_x, center_y)
+
+		for radius in range(1, max(width, height)):
+			for dy in range(-radius, radius + 1):
+				for dx in range(-radius, radius + 1):
+					if max(abs(dx), abs(dy)) != radius:
+						continue
+					x, y = center_x + dx, center_y + dy
+					if 0 <= x < width and 0 <= y < height and terrain[y, x] != 1:
+						return (x, y)
+		return None
 
 	def _move_randomly(self) -> None:
 		if self.mobility <= 0:

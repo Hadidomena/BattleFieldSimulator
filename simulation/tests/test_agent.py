@@ -176,6 +176,49 @@ def test_navigation_remembers_last_known_enemy_position() -> None:
 	assert blue._get_navigation_target() == seen_pos
 
 
+def test_navigation_advance_target_avoids_blocked_center() -> None:
+	board = np.zeros((5, 5), dtype=int)
+	board[2, 2] = 1
+	model = BattlefieldModel(
+		board,
+		blue_spawn_points=[(0, 0)],
+		red_spawn_points=[(4, 4)],
+	)
+	blue = _agent_by_team(model, "Blue")
+
+	blue.view_angle_deg = 90.0
+	blue.facing_direction = (0, -1)
+	blue.observation_range = 1
+
+	assert blue.get_visible_enemies() == []
+	target = blue._get_navigation_target()
+	assert target is not None
+	assert target != (2, 2)
+	assert model.terrain[target[1], target[0]] == 0
+
+
+def test_detection_alerts_allied_units() -> None:
+	board = np.zeros((20, 20), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	blue_ally = CombatAgent(model, team="Blue", hp=100)
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (5, 5))
+	model.grid.place_agent(blue_ally, (1, 1))
+	model.grid.move_agent(red, (6, 5))
+
+	blue.view_angle_deg = 360.0
+	blue.observation_range = 5
+	blue_ally.view_angle_deg = 90.0
+	blue_ally.facing_direction = (0, -1)
+	blue_ally.observation_range = 1
+
+	assert blue_ally.last_known_enemy_pos is None
+	blue.get_visible_enemies()
+	assert blue_ally.last_known_enemy_pos == red.pos
+
+
 def test_attack_reduces_enemy_hp() -> None:
 	board = np.zeros((6, 6), dtype=int)
 	model = BattlefieldModel(board)
