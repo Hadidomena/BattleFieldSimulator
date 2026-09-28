@@ -775,7 +775,6 @@ class ReconSquad(CombatAgent):
 class MechanizedInfantry(CombatAgent):
 	"""
 	more mobile and durable than InfantrySquad
-	TODO: maybe in futre implement more of weaknesses
 	"""
 
 	def __init__(
@@ -794,6 +793,7 @@ class MechanizedInfantry(CombatAgent):
 		mobility: int = 4,
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
+		retreat_health_ratio: float = 0.30,
 		cover_multiplier: float = 0.7,
 	) -> None:
 		super().__init__(
@@ -811,6 +811,7 @@ class MechanizedInfantry(CombatAgent):
 			mobility,
 			navigation_algorithm,
 			allow_diagonal_navigation,
+			retreat_health_ratio=retreat_health_ratio,
 			cover_multiplier=cover_multiplier,
 		)
 

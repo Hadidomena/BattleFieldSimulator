@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import mesa
 import numpy as np
 
-from simulation.agent import CombatAgent, ReconSquad
+from simulation.agent import CombatAgent, MechanizedInfantry, ReconSquad
 from simulation.model import BattlefieldModel
 
 
@@ -390,6 +390,21 @@ def test_reconsquad_earlier_retreat_threshold() -> None:
 	)
 	assert infantry.retreat_health_ratio == 0.30, (
 		f"Base units should retreat at 0.30, got {infantry.retreat_health_ratio}"
+	)
+
+
+def test_mechanized_infantry_accepts_retreat_health_ratio_override() -> None:
+	default = MechanizedInfantry(MagicMock(spec=mesa.Model), team="Blue")
+	overridden = MechanizedInfantry(
+		MagicMock(spec=mesa.Model), team="Blue", retreat_health_ratio=0.55
+	)
+
+	assert default.retreat_health_ratio == 0.30, (
+		f"MechanizedInfantry should default to 0.30, got {default.retreat_health_ratio}"
+	)
+	assert overridden.retreat_health_ratio == 0.55, (
+		f"MechanizedInfantry should accept an override, got "
+		f"{overridden.retreat_health_ratio}"
 	)
 
 
