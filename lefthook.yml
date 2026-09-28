@@ -2,15 +2,15 @@ pre-commit:
   parallel: false
   jobs:
     - name: ruff-check
-      glob: "**/*.py"
+      glob: "*.py"
       run: venv/bin/ruff check --fix --force-exclude {staged_files}
       stage_fixed: true
 
     - name: ruff-format
-      glob: "**/*.py"
+      glob: "*.py"
       run: venv/bin/ruff format --force-exclude {staged_files}
       stage_fixed: true
 
     - name: python-compile
-      glob: "**/*.py"
+      glob: "*.py"
       run: python -m py_compile {staged_files}
