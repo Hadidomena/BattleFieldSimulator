@@ -10,7 +10,7 @@ A meso-scale tactical combat simulator built with [Mesa](https://mesa.readthedoc
 - **MechanizedInfantry** — armoured transport with good firepower
 - **MainBattleTank** — heavy armour (0.60), massive HP (400), long-range cannon
 
-### Tactical AI 
+### Tactical AI
 Modeled using finite-state machine utilizing states:
 - **advance** — move toward enemies using A*/Dijkstra pathfinding
 - **engage** — attack visible enemies in range; move + attack otherwise
@@ -73,6 +73,21 @@ python -m simulation.analysis --explore "H1"             # specific scenario
 
 ```bash
 pytest -v --cov=simulation
+```
+
+### Set up git hooks
+
+Git hooks are managed with [Lefthook](https://lefthook.dev/). They run ruff
+linting/formatting and byte-compile staged Python files before each commit.
+
+```bash
+winget install lefthook          # if using Windows
+sudo apt install lefthook        # or
+sudo snap install lefthook       # if using Linux
+brew install lefthook            # if on MacOS
+# in case of problems see https://lefthook.dev/installation/
+
+lefthook install         # one-time, per clone
 ```
 
 ## Project structure
