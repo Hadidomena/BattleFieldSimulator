@@ -122,6 +122,16 @@ def _reconfigure_agents(model: BattlefieldModel, team: str, team_config: dict) -
 			model.grid.place_agent(agent, spawn_pos)
 
 
+def _print_step_debug(model: BattlefieldModel) -> None:
+	descriptions = " | ".join(
+		f"#{agent.unique_id} {type(agent).__name__}({agent.team}) "
+		f"pos={agent.pos} hp={getattr(agent, 'hp', 0)} "
+		f"state={getattr(agent, 'ai_state', None)}"
+		for agent in model.agents
+	)
+	print(f"[step {model.steps}] {descriptions}")
+
+
 def run_single_simulation(
 	model: BattlefieldModel, steps: int, verbose: bool = False
 ) -> dict:
@@ -132,6 +142,8 @@ def run_single_simulation(
 			if not model.running:
 				break
 			model.step()
+			if verbose:
+				_print_step_debug(model)
 
 	blue_alive = sum(
 		1
