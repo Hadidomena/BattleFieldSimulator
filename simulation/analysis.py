@@ -815,9 +815,7 @@ class ScenarioExplorer:
 				color=team_colors.get(team, "gray"),
 				alpha=0.8,
 				linewidth=1.5,
-				label=f"{team} {cls} #{agent_id}"
-				if agent_id == run_df["unique_id"].unique().min() or True
-				else "",
+				label=f"{team} {cls} #{agent_id}",
 			)
 			ax.scatter(
 				agent_df["step"].iloc[-1:],
