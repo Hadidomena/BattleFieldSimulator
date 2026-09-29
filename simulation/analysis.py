@@ -468,6 +468,12 @@ class ScenarioExplorer:
 		self._find_scenarios()
 
 	def _find_scenarios(self) -> None:
+		if not self.results_dir.exists():
+			raise FileNotFoundError(
+				f"Results directory not found: {self.results_dir}\n"
+				"Run 'python run_scenarios.py' first."
+			)
+
 		summary_path = self.results_dir / "all_summaries.json"
 		if summary_path.exists():
 			with open(summary_path) as f:
