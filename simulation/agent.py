@@ -785,23 +785,6 @@ class ReconSquad(CombatAgent):
 
 		super().move(target_position)
 
-	def update_behavior_state(self, visible_enemies: list["CombatAgent"]) -> None:
-		has_visible_enemy = len(visible_enemies) > 0
-		health_ratio = self.hp / max(1, self.max_hp)
-
-		if has_visible_enemy and health_ratio <= self.retreat_health_ratio:
-			self.ai_state = "retreat"
-			return
-
-		if has_visible_enemy:
-			self.ai_state = "engage"
-			return
-
-		if self.patrol_route:
-			self.ai_state = "patrol"
-		else:
-			self.ai_state = "advance"
-
 
 class MechanizedInfantry(CombatAgent):
 	"""
