@@ -11,6 +11,7 @@ from simulation.utils import (
 	hit_probability,
 	is_in_vision_cone,
 	path_total_cost,
+	run_model,
 )
 
 
@@ -141,3 +142,32 @@ def test_calculate_damage_reduced_by_cover_and_armor() -> None:
 
 	assert base > covered
 	assert base > armored
+
+
+class _FakeModel:
+	def __init__(self, stop_after: int | None = None) -> None:
+		self.running = True
+		self.steps = 0
+		self._stop_after = stop_after
+
+	def step(self) -> None:
+		self.steps += 1
+		if self._stop_after is not None and self.steps >= self._stop_after:
+			self.running = False
+
+
+def test_run_model_stops_when_battle_over() -> None:
+	model = _FakeModel(stop_after=2)
+	run_model(model, 10)
+
+	assert model.steps == 2
+
+
+def test_run_model_invokes_on_step_callback() -> None:
+	model = _FakeModel()
+	seen: list[int] = []
+
+	run_model(model, 3, on_step=lambda m: seen.append(m.steps))
+
+	assert model.steps == 3
+	assert seen == [1, 2, 3]

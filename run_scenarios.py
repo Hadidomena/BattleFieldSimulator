@@ -16,8 +16,6 @@ from contextlib import nullcontext, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 
-import numpy as np
-
 from simulation.agent import (
 	CombatAgent,
 	InfantrySquad,
@@ -26,6 +24,7 @@ from simulation.agent import (
 	ReconSquad,
 )
 from simulation.model import BattlefieldModel
+from simulation.utils import load_board, run_model
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 SCENARIO_DIR = PROJECT_ROOT / "data" / "scenarios"
@@ -37,17 +36,6 @@ UNIT_CLASSES: dict[str, type[CombatAgent]] = {
 	"MechanizedInfantry": MechanizedInfantry,
 	"MainBattleTank": MainBattleTank,
 }
-
-
-def load_board(path: str) -> np.ndarray:
-	full_path = PROJECT_ROOT / path
-	if not full_path.exists():
-		raise FileNotFoundError(f"Map file not found: {full_path}")
-	try:
-		board = np.loadtxt(full_path, delimiter=",", dtype=int)
-	except Exception:
-		board = np.loadtxt(full_path, dtype=int)
-	return board
 
 
 def load_scenarios(scenario_dir: Path, filters: list[str] | None = None) -> list[dict]:
@@ -66,7 +54,7 @@ def load_scenarios(scenario_dir: Path, filters: list[str] | None = None) -> list
 def build_model_from_scenario(
 	scenario: dict, seed: int | None = None
 ) -> BattlefieldModel:
-	board = load_board(scenario["map"])
+	board = load_board(scenario["map"], base_dir=PROJECT_ROOT)
 	blue_config = scenario["blue_team"]
 	red_config = scenario["red_team"]
 
@@ -78,6 +66,7 @@ def build_model_from_scenario(
 		blue_spawn_points=blue_spawn,
 		red_spawn_points=red_spawn,
 		seed=seed,
+		spawn_agents=False,
 	)
 
 	_reconfigure_agents(model, "Blue", blue_config)
@@ -138,23 +127,10 @@ def run_single_simulation(
 	stdout_target = io.StringIO() if not verbose else None
 
 	with redirect_stdout(stdout_target) if not verbose else nullcontext():
-		for _ in range(steps):
-			if not model.running:
-				break
-			model.step()
-			if verbose:
-				_print_step_debug(model)
+		run_model(model, steps, on_step=_print_step_debug if verbose else None)
 
-	blue_alive = sum(
-		1
-		for a in model.agents
-		if getattr(a, "team", None) == "Blue" and getattr(a, "hp", 0) > 0
-	)
-	red_alive = sum(
-		1
-		for a in model.agents
-		if getattr(a, "team", None) == "Red" and getattr(a, "hp", 0) > 0
-	)
+	blue_alive = model.alive_count("Blue")
+	red_alive = model.alive_count("Red")
 
 	return {
 		"blue_alive": blue_alive,

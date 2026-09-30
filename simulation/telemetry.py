@@ -22,16 +22,8 @@ class TelemetryCollector:
 
 	def record_step(self, model: BattlefieldModel) -> None:
 		step = model.steps
-		alive_blue = sum(
-			1
-			for a in model.agents
-			if getattr(a, "team", None) == "Blue" and getattr(a, "hp", 0) > 0
-		)
-		alive_red = sum(
-			1
-			for a in model.agents
-			if getattr(a, "team", None) == "Red" and getattr(a, "hp", 0) > 0
-		)
+		alive_blue = model.alive_count("Blue")
+		alive_red = model.alive_count("Red")
 
 		self.model_records.append(
 			{
