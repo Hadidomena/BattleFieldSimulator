@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 import main as simulation_main
+import run_scenarios
 from simulation.agent import (
 	CombatAgent,
 	InfantrySquad,
@@ -87,6 +88,7 @@ def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
 			board: np.ndarray,
 			blue_spawn_points=None,
 			red_spawn_points=None,
+			seed=None,
 		) -> None:
 			self.board = board
 			self.step_calls = 0
@@ -95,6 +97,7 @@ def test_stage_i_main_loop_runs_declared_number_of_steps(monkeypatch) -> None:
 			self.telemetry = FakeTelmetry()
 			self.blue_spawn_points = blue_spawn_points
 			self.red_spawn_points = red_spawn_points
+			self.seed = seed
 			FakeBattlefieldModel.instances.append(self)
 
 		def step(self) -> None:
@@ -322,3 +325,19 @@ def test_stage_ii_ai_retreat_logic_increases_distance_from_threat() -> None:
 
 	assert blue.ai_state == "retreat"
 	assert len(distance_after) >= len(distance_before)
+
+
+def test_verbose_scenario_run_prints_step_debug(capsys) -> None:
+	model = BattlefieldModel(np.zeros((10, 10), dtype=int), seed=1)
+	run_scenarios.run_single_simulation(model, 2, verbose=True)
+
+	out = capsys.readouterr().out
+	assert "[step 1]" in out
+	assert "CombatAgent(Blue)" in out
+
+
+def test_non_verbose_scenario_run_is_silent(capsys) -> None:
+	model = BattlefieldModel(np.zeros((10, 10), dtype=int), seed=1)
+	run_scenarios.run_single_simulation(model, 2, verbose=False)
+
+	assert capsys.readouterr().out == ""

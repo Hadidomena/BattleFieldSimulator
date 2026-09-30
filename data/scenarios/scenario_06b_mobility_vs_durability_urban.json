@@ -7,13 +7,13 @@
         "units": [
             {"class": "ReconSquad", "count": 1}
         ],
-        "spawn_points": [[1, 1]]
+        "spawn_points": [[1, 2]]
     },
     "red_team": {
         "units": [
             {"class": "MainBattleTank", "count": 1}
         ],
-        "spawn_points": [[18, 18]]
+        "spawn_points": [[18, 17]]
     },
     "steps": 120,
     "run_count": 20,

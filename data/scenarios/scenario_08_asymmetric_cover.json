@@ -13,7 +13,7 @@
         "units": [
             {"class": "InfantrySquad", "count": 2}
         ],
-        "spawn_points": [[6, 2], [8, 2]]
+        "spawn_points": [[6, 1], [8, 1]]
     },
     "steps": 60,
     "run_count": 15,

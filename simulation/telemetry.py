@@ -15,6 +15,11 @@ class TelemetryCollector:
 		self.agent_records: list[dict] = []
 		self.event_records: list[dict] = []
 
+	def reset(self) -> None:
+		self.model_records.clear()
+		self.agent_records.clear()
+		self.event_records.clear()
+
 	def record_step(self, model: BattlefieldModel) -> None:
 		step = model.steps
 		alive_blue = sum(

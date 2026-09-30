@@ -468,6 +468,12 @@ class ScenarioExplorer:
 		self._find_scenarios()
 
 	def _find_scenarios(self) -> None:
+		if not self.results_dir.exists():
+			raise FileNotFoundError(
+				f"Results directory not found: {self.results_dir}\n"
+				"Run 'python run_scenarios.py' first."
+			)
+
 		summary_path = self.results_dir / "all_summaries.json"
 		if summary_path.exists():
 			with open(summary_path) as f:
@@ -492,14 +498,7 @@ class ScenarioExplorer:
 
 	@property
 	def scenario_names(self) -> list[str]:
-		return sorted(
-			self._scenario_dirs.keys(),
-			key=lambda n: (
-				list(self._scenario_dirs.keys()).index(n)
-				if n in self._scenario_dirs
-				else 0
-			),
-		)
+		return list(self._scenario_dirs)
 
 	def list_scenarios(self) -> list[str]:
 		return list(self._scenario_dirs.keys())
@@ -809,9 +808,7 @@ class ScenarioExplorer:
 				color=team_colors.get(team, "gray"),
 				alpha=0.8,
 				linewidth=1.5,
-				label=f"{team} {cls} #{agent_id}"
-				if agent_id == run_df["unique_id"].unique().min() or True
-				else "",
+				label=f"{team} {cls} #{agent_id}",
 			)
 			ax.scatter(
 				agent_df["step"].iloc[-1:],

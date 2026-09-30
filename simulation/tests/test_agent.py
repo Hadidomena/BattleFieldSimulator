@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import mesa
 import numpy as np
 
-from simulation.agent import CombatAgent, ReconSquad
+from simulation.agent import CombatAgent, MechanizedInfantry, ReconSquad
 from simulation.model import BattlefieldModel
 
 
@@ -128,12 +128,95 @@ def test_move_uses_pathfinding_to_bypass_obstacle_wall() -> None:
 	blue.mobility = 1
 	blue.navigation_algorithm = "a_star"
 	blue.allow_diagonal_navigation = False
+	blue.last_known_enemy_pos = red.pos
 
 	blue.move()
 
 	assert blue.pos == (1, 2)
 	assert blue.current_path[0] == (1, 3)
 	assert blue.current_path[-1] == (5, 3)
+
+
+def test_navigation_falls_back_to_map_center_without_detection() -> None:
+	board = np.zeros((20, 20), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (1, 1))
+	model.grid.move_agent(red, (18, 18))
+
+	blue.view_angle_deg = 90.0
+	blue.facing_direction = (0, -1)
+	blue.observation_range = 3
+	blue.detection_threshold = 0.1
+
+	assert blue.get_visible_enemies() == []
+	assert blue._get_navigation_target() == (10, 10)
+
+
+def test_navigation_remembers_last_known_enemy_position() -> None:
+	board = np.zeros((20, 20), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (5, 5))
+	model.grid.move_agent(red, (6, 5))
+
+	blue.view_angle_deg = 360.0
+	blue.observation_range = 5
+	assert red in blue.get_visible_enemies()
+	seen_pos = red.pos
+
+	model.grid.move_agent(red, (19, 19))
+	blue.observation_range = 1
+
+	assert blue.get_visible_enemies() == []
+	assert blue._get_navigation_target() == seen_pos
+
+
+def test_navigation_advance_target_avoids_blocked_center() -> None:
+	board = np.zeros((5, 5), dtype=int)
+	board[2, 2] = 1
+	model = BattlefieldModel(
+		board,
+		blue_spawn_points=[(0, 0)],
+		red_spawn_points=[(4, 4)],
+	)
+	blue = _agent_by_team(model, "Blue")
+
+	blue.view_angle_deg = 90.0
+	blue.facing_direction = (0, -1)
+	blue.observation_range = 1
+
+	assert blue.get_visible_enemies() == []
+	target = blue._get_navigation_target()
+	assert target is not None
+	assert target != (2, 2)
+	assert model.terrain[target[1], target[0]] == 0
+
+
+def test_detection_alerts_allied_units() -> None:
+	board = np.zeros((20, 20), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	blue_ally = CombatAgent(model, team="Blue", hp=100)
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (5, 5))
+	model.grid.place_agent(blue_ally, (1, 1))
+	model.grid.move_agent(red, (6, 5))
+
+	blue.view_angle_deg = 360.0
+	blue.observation_range = 5
+	blue_ally.view_angle_deg = 90.0
+	blue_ally.facing_direction = (0, -1)
+	blue_ally.observation_range = 1
+
+	assert blue_ally.last_known_enemy_pos is None
+	blue.get_visible_enemies()
+	assert blue_ally.last_known_enemy_pos == red.pos
 
 
 def test_attack_reduces_enemy_hp() -> None:
@@ -179,6 +262,27 @@ def test_attack_can_eliminate_and_remove_agent() -> None:
 	assert red not in list(model.agents)
 	assert model.eliminated_by_team["Red"] == 1
 	assert model.kills_by_team["Blue"] == 1
+
+
+def test_attack_damage_is_clamped_to_remaining_hp() -> None:
+	board = np.zeros((6, 6), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (2, 2))
+
+	blue.attack_range = 4.0
+	blue.accuracy = 1.0
+	blue.firepower = 100
+	red.hp = 5
+
+	blue.attack(red)
+
+	assert red.hp == 0
+	assert model.damage_by_team["Blue"] == 5
+	assert blue.last_damage_dealt == 5
 
 
 def test_attack_with_accuracy_override() -> None:
@@ -267,6 +371,34 @@ def test_retreat_does_not_abandon_outnumbered_allies() -> None:
 	)
 
 
+def test_retreat_ignores_unreachable_cells() -> None:
+	board = np.zeros((10, 10), dtype=int)
+	for y in range(3):
+		board[y, 3] = 1
+	for x in range(3):
+		board[3, x] = 1
+
+	model = BattlefieldModel(
+		board,
+		blue_spawn_points=[(5, 5)],
+		red_spawn_points=[(8, 8)],
+	)
+	blue = _agent_by_team(model, "Blue")
+
+	assert (1, 1) not in blue._reachable_cells(model.terrain)
+
+	blue.view_angle_deg = 360.0
+	blue.observation_range = 20
+	blue._score_retreat_cell = lambda candidate, *args: (
+		100.0 if candidate == (1, 1) else 1.0
+	)
+	blue._move_randomly = MagicMock()
+
+	blue.retreat(blue.get_visible_enemies())
+
+	assert not blue._move_randomly.called
+
+
 def test_destructible_cover_obstacle_destroyed_by_fire() -> None:
 	board = np.zeros((6, 6), dtype=int)
 	board[4, 3] = 1
@@ -325,6 +457,8 @@ def test_reconsquad_retreat_different_scoring() -> None:
 		board,
 		blue_unit_class=ReconSquad,
 		red_unit_class=CombatAgent,
+		blue_spawn_points=[(2, 2)],
+		red_spawn_points=[(2, 6)],
 	)
 	recon = next(
 		a for a in model.agents if isinstance(a, ReconSquad) and a.team == "Blue"
@@ -388,6 +522,21 @@ def test_reconsquad_earlier_retreat_threshold() -> None:
 	)
 	assert infantry.retreat_health_ratio == 0.30, (
 		f"Base units should retreat at 0.30, got {infantry.retreat_health_ratio}"
+	)
+
+
+def test_mechanized_infantry_accepts_retreat_health_ratio_override() -> None:
+	default = MechanizedInfantry(MagicMock(spec=mesa.Model), team="Blue")
+	overridden = MechanizedInfantry(
+		MagicMock(spec=mesa.Model), team="Blue", retreat_health_ratio=0.55
+	)
+
+	assert default.retreat_health_ratio == 0.30, (
+		f"MechanizedInfantry should default to 0.30, got {default.retreat_health_ratio}"
+	)
+	assert overridden.retreat_health_ratio == 0.55, (
+		f"MechanizedInfantry should accept an override, got "
+		f"{overridden.retreat_health_ratio}"
 	)
 
 

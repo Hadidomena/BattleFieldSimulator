@@ -16,8 +16,9 @@ class BattlefieldModel(mesa.Model):
 		blue_spawn_points: list[tuple[int, int]] | None = None,
 		red_spawn_points: list[tuple[int, int]] | None = None,
 		obstacle_max_hp: float = 50.0,
+		seed: int | None = None,
 	) -> None:
-		super().__init__()
+		super().__init__(rng=seed)
 		self.width = board.shape[1]
 		self.height = board.shape[0]
 		self.terrain = board.copy()
@@ -95,14 +96,30 @@ class BattlefieldModel(mesa.Model):
 					):
 						self.destroyed_obstacles_by_team[attacker_team] += 1
 
+	def _validate_spawn_points(
+		self, positions: list[tuple[int, int]], team: str
+	) -> None:
+		for position in positions:
+			x, y = position
+			if not (0 <= x < self.width and 0 <= y < self.height):
+				raise ValueError(
+					f"{team} spawn point {position} is out of bounds for a "
+					f"{self.width}x{self.height} map"
+				)
+			if self.terrain[y, x] == 1:
+				raise ValueError(
+					f"{team} spawn point {position} is on an obstacle "
+					f"(terrain == 1) and cannot be walked on"
+				)
+
 	def _init_board(self, board: np.ndarray) -> None:
-		"""
-		TODO: Expand terrain logic
-		"""
 		default_blue_spawn = [(3, 1)]
 		default_red_spawn = [(3, 5)]
 		blue_positions = self.blue_spawn_points or default_blue_spawn
 		red_positions = self.red_spawn_points or default_red_spawn
+
+		self._validate_spawn_points(blue_positions, "Blue")
+		self._validate_spawn_points(red_positions, "Red")
 
 		for spawn_position in blue_positions:
 			blue_agent = self.blue_unit_class(
@@ -119,6 +136,11 @@ class BattlefieldModel(mesa.Model):
 				**self.red_unit_kwargs,
 			)
 			self.grid.place_agent(red_agent, spawn_position)
+
+	def broadcast_sighting(self, team: str, position: tuple[int, int]) -> None:
+		for agent in self.agents:
+			if isinstance(agent, CombatAgent) and agent.team == team and agent.hp > 0:
+				agent.last_known_enemy_pos = position
 
 	def is_battle_over(self) -> bool:
 		alive_blue = sum(
@@ -182,7 +204,7 @@ class BattlefieldModel(mesa.Model):
 		)
 
 	def step(self) -> None:
-		self.datacollector.collect(self)
 		self.agents.shuffle_do("step")
+		self.datacollector.collect(self)
 		self.telemetry.record_step(self)
 		self.running = not self.is_battle_over()

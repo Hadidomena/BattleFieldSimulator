@@ -32,4 +32,4 @@ jobs:
       env:
         PYTHONPATH: .
       run: |
-        pytest simulation/tests/ -v --cov=simulation
+        pytest simulation/tests/ tests/ -v --cov=simulation

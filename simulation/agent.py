@@ -12,6 +12,7 @@ from simulation.utils import (
 	directional_cover_ratio,
 	euclidean_distance,
 	find_path,
+	get_walkable_neighbors,
 	has_line_of_sight,
 	hit_probability,
 	is_in_vision_cone,
@@ -49,13 +50,14 @@ class CombatAgent(mesa.Agent):
 		self.detection_threshold = detection_threshold
 		self.accuracy = accuracy
 		self.armor = armor
-		self.facing_direction = facing_direction
+		self.facing_direction = tuple(facing_direction)
 		self.mobility = mobility
 		self.navigation_algorithm = navigation_algorithm
 		self.allow_diagonal_navigation = allow_diagonal_navigation
 		self.retreat_health_ratio = retreat_health_ratio
 		self.cover_multiplier = cover_multiplier
 		self.last_detection_scores: dict[int, float] = {}
+		self.last_known_enemy_pos: tuple[int, int] | None = None
 		self.current_path: list[tuple[int, int]] = []
 		self.last_damage_dealt: int = 0
 		self.last_damage_taken: int = 0
@@ -73,12 +75,12 @@ class CombatAgent(mesa.Agent):
 		self.update_behavior_state(visible_before_move)
 
 		if self.ai_state == "retreat":
-			if not self._covering_fire(visible_before_move):
-				self._covering_fire_suppress(visible_before_move)
 			self.retreat(visible_before_move)
 		elif self.ai_state == "engage":
-			engaged = self.attack_closest_target(visible_before_move)
-			if not engaged:
+			target = self._pick_attack_target(visible_before_move)
+			if target is not None:
+				self.attack(target)
+			else:
 				self.move()
 				visible_after_move = self.get_visible_enemies()
 				self.attack_closest_target(visible_after_move)
@@ -156,12 +158,6 @@ class CombatAgent(mesa.Agent):
 			return False
 		return self.attack(target, accuracy_override=self.accuracy * 0.5)
 
-	def _covering_fire_suppress(self, visible_enemies: list["CombatAgent"]) -> bool:
-		target = self._pick_attack_target(visible_enemies)
-		if target is None:
-			return False
-		return self.attack(target, accuracy_override=self.accuracy * 0.35)
-
 	def _score_retreat_cell(
 		self,
 		candidate: tuple[int, int],
@@ -204,6 +200,22 @@ class CombatAgent(mesa.Agent):
 			+ nearby_allies_at_cell * 3.0
 			+ group_cohesion * 5.0
 		)
+
+	def _reachable_cells(self, terrain: np.ndarray) -> set[tuple[int, int]]:
+		if self.pos is None:
+			return set()
+
+		reachable = {self.pos}
+		frontier = [self.pos]
+		while frontier:
+			current = frontier.pop()
+			for neighbor in get_walkable_neighbors(
+				current, terrain, self.allow_diagonal_navigation
+			):
+				if neighbor not in reachable:
+					reachable.add(neighbor)
+					frontier.append(neighbor)
+		return reachable
 
 	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:  # noqa: C901
 		terrain = getattr(self.model, "terrain", None)
@@ -255,12 +267,15 @@ class CombatAgent(mesa.Agent):
 		)
 
 		search_radius = max(4, self.mobility + 2)
+		reachable = self._reachable_cells(terrain)
 		for dx in range(-search_radius, search_radius + 1):
 			for dy in range(-search_radius, search_radius + 1):
 				if dx == 0 and dy == 0:
 					continue
 				candidate = (self.pos[0] + dx, self.pos[1] + dy)
 				if not _is_position_valid(candidate, terrain):
+					continue
+				if candidate not in reachable:
 					continue
 
 				score = self._score_retreat_cell(
@@ -393,27 +408,27 @@ class CombatAgent(mesa.Agent):
 		)
 
 		if hasattr(self.model, "apply_obstacle_damage") and target.pos is not None:
-			self.model.apply_obstacle_damage(target.pos, damage, self.team)
-		target.receive_damage(damage, attacker=self)
+			self.model.apply_obstacle_damage(target.pos, damage)
+		effective_damage = target.receive_damage(damage, attacker=self)
 		if hasattr(self.model, "record_attack"):
 			self.model.record_attack(
 				self.team,
 				hit=True,
-				damage=damage,
+				damage=effective_damage,
 				attacker_id=self.unique_id,
 				defender_id=target.unique_id,
 				defender_team=target.team,
 			)
-		self.last_damage_dealt = damage
+		self.last_damage_dealt = effective_damage
 		return True
 
-	def receive_damage(self, amount: int, attacker: "CombatAgent" | None = None) -> None:
+	def receive_damage(self, amount: int, attacker: "CombatAgent" | None = None) -> int:
 		if self.hp <= 0:
-			return
+			return 0
 
-		damage = max(0, int(amount))
+		damage = min(max(0, int(amount)), self.hp)
 		self.last_damage_taken = damage
-		self.hp = max(0, self.hp - damage)
+		self.hp -= damage
 
 		if attacker is not None:
 			self._last_attacker_id = attacker.unique_id
@@ -421,6 +436,8 @@ class CombatAgent(mesa.Agent):
 		if self.hp == 0:
 			killer_team = attacker.team if attacker else None
 			self.eliminate(killer_team)
+
+		return damage
 
 	def eliminate(self, killer_team: str | None = None) -> None:
 		self.hp = 0
@@ -433,15 +450,9 @@ class CombatAgent(mesa.Agent):
 			)
 
 		if self.pos is not None and hasattr(self.model, "grid"):
-			try:
-				self.model.grid.remove_agent(self)
-			except Exception:
-				pass
+			self.model.grid.remove_agent(self)
 
-		try:
-			self.remove()
-		except Exception:
-			pass
+		self.remove()
 
 	def get_visible_enemies(self) -> list["CombatAgent"]:
 		enemies_with_score: list[tuple[CombatAgent, float]] = []
@@ -466,7 +477,15 @@ class CombatAgent(mesa.Agent):
 		self.last_detection_scores = {
 			agent.unique_id: score for agent, score in enemies_with_score
 		}
-		return [agent for agent, _ in enemies_with_score]
+		visible_enemies = [agent for agent, _ in enemies_with_score]
+		if visible_enemies:
+			self.last_known_enemy_pos = min(
+				visible_enemies,
+				key=lambda enemy: euclidean_distance(self.pos, enemy.pos),
+			).pos
+			if hasattr(self.model, "broadcast_sighting"):
+				self.model.broadcast_sighting(self.team, self.last_known_enemy_pos)
+		return visible_enemies
 
 	def get_visible_cells(self) -> set[tuple[int, int]]:
 		return visible_cells(
@@ -477,22 +496,6 @@ class CombatAgent(mesa.Agent):
 			view_angle_deg=self.view_angle_deg,
 		)
 
-	def _get_alive_enemy_agents(self) -> list["CombatAgent"]:
-		try:
-			agents = list(self.model.agents)
-		except TypeError:
-			return []
-
-		return [
-			agent
-			for agent in agents
-			if (
-				isinstance(agent, CombatAgent)
-				and agent.team != self.team
-				and agent.hp > 0
-			)
-		]
-
 	def _get_navigation_target(self) -> tuple[int, int] | None:
 		if self.patrol_route:
 			return self.patrol_route[self.patrol_index]
@@ -501,14 +504,30 @@ class CombatAgent(mesa.Agent):
 		if visible_enemies:
 			return visible_enemies[0].pos
 
-		enemies = self._get_alive_enemy_agents()
-		if not enemies:
+		if self.last_known_enemy_pos is not None:
+			return self.last_known_enemy_pos
+
+		return self._advance_target()
+
+	def _advance_target(self) -> tuple[int, int] | None:
+		terrain = getattr(self.model, "terrain", None)
+		if not isinstance(terrain, np.ndarray):
 			return None
 
-		return min(
-			enemies,
-			key=lambda enemy: euclidean_distance(self.pos, enemy.pos),
-		).pos
+		height, width = terrain.shape
+		center_x, center_y = width // 2, height // 2
+		if terrain[center_y, center_x] != 1:
+			return (center_x, center_y)
+
+		for radius in range(1, max(width, height)):
+			for dy in range(-radius, radius + 1):
+				for dx in range(-radius, radius + 1):
+					if max(abs(dx), abs(dy)) != radius:
+						continue
+					x, y = center_x + dx, center_y + dy
+					if 0 <= x < width and 0 <= y < height and terrain[y, x] != 1:
+						return (x, y)
+		return None
 
 	def _move_randomly(self) -> None:
 		if self.mobility <= 0:
@@ -760,28 +779,10 @@ class ReconSquad(CombatAgent):
 
 		super().move(target_position)
 
-	def update_behavior_state(self, visible_enemies: list["CombatAgent"]) -> None:
-		has_visible_enemy = len(visible_enemies) > 0
-		health_ratio = self.hp / max(1, self.max_hp)
-
-		if has_visible_enemy and health_ratio <= self.retreat_health_ratio:
-			self.ai_state = "retreat"
-			return
-
-		if has_visible_enemy:
-			self.ai_state = "engage"
-			return
-
-		if self.patrol_route:
-			self.ai_state = "patrol"
-		else:
-			self.ai_state = "advance"
-
 
 class MechanizedInfantry(CombatAgent):
 	"""
 	more mobile and durable than InfantrySquad
-	TODO: maybe in futre implement more of weaknesses
 	"""
 
 	def __init__(
@@ -800,6 +801,7 @@ class MechanizedInfantry(CombatAgent):
 		mobility: int = 4,
 		navigation_algorithm: str = "a_star",
 		allow_diagonal_navigation: bool = False,
+		retreat_health_ratio: float = 0.30,
 		cover_multiplier: float = 0.7,
 	) -> None:
 		super().__init__(
@@ -817,6 +819,7 @@ class MechanizedInfantry(CombatAgent):
 			mobility,
 			navigation_algorithm,
 			allow_diagonal_navigation,
+			retreat_health_ratio=retreat_health_ratio,
 			cover_multiplier=cover_multiplier,
 		)
 

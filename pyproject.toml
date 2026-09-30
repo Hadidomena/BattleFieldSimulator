@@ -11,5 +11,8 @@ ignore = ["W191"]
 [tool.ruff.format]
 indent-style = "tab"
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.coverage.run]
 omit = ["simulation/tests/*"]

@@ -63,7 +63,9 @@ def load_scenarios(scenario_dir: Path, filters: list[str] | None = None) -> list
 	return scenarios
 
 
-def build_model_from_scenario(scenario: dict) -> BattlefieldModel:
+def build_model_from_scenario(
+	scenario: dict, seed: int | None = None
+) -> BattlefieldModel:
 	board = load_board(scenario["map"])
 	blue_config = scenario["blue_team"]
 	red_config = scenario["red_team"]
@@ -75,11 +77,14 @@ def build_model_from_scenario(scenario: dict) -> BattlefieldModel:
 		board,
 		blue_spawn_points=blue_spawn,
 		red_spawn_points=red_spawn,
+		seed=seed,
 	)
 
 	_reconfigure_agents(model, "Blue", blue_config)
 	_reconfigure_agents(model, "Red", red_config)
 
+	model.telemetry.reset()
+	model.telemetry.record_step(model)
 	return model
 
 
@@ -117,6 +122,16 @@ def _reconfigure_agents(model: BattlefieldModel, team: str, team_config: dict) -
 			model.grid.place_agent(agent, spawn_pos)
 
 
+def _print_step_debug(model: BattlefieldModel) -> None:
+	descriptions = " | ".join(
+		f"#{agent.unique_id} {type(agent).__name__}({agent.team}) "
+		f"pos={agent.pos} hp={getattr(agent, 'hp', 0)} "
+		f"state={getattr(agent, 'ai_state', None)}"
+		for agent in model.agents
+	)
+	print(f"[step {model.steps}] {descriptions}")
+
+
 def run_single_simulation(
 	model: BattlefieldModel, steps: int, verbose: bool = False
 ) -> dict:
@@ -127,6 +142,8 @@ def run_single_simulation(
 			if not model.running:
 				break
 			model.step()
+			if verbose:
+				_print_step_debug(model)
 
 	blue_alive = sum(
 		1
@@ -204,6 +221,7 @@ def run_scenario(
 	output_dir: Path,
 	capture_telemetry: bool = True,
 	verbose: bool = False,
+	seed: int | None = None,
 ) -> dict:
 	scenario_name = scenario["name"]
 	run_count = scenario["run_count"]
@@ -216,7 +234,8 @@ def run_scenario(
 	run_results: list[dict] = []
 
 	for run_idx in range(run_count):
-		model = build_model_from_scenario(scenario)
+		run_seed = None if seed is None else seed + run_idx
+		model = build_model_from_scenario(scenario, seed=run_seed)
 		run_result = run_single_simulation(model, steps, verbose=verbose)
 		run_result["run_index"] = run_idx
 		run_results.append(run_result)
@@ -307,6 +326,13 @@ def main() -> None:
 		action="store_true",
 		help="Show per-turn agent debug output during simulation runs.",
 	)
+	parser.add_argument(
+		"--seed",
+		type=int,
+		default=None,
+		help="Seed for reproducible runs. Each run uses seed + run index; "
+		"omit for non-deterministic runs.",
+	)
 	args = parser.parse_args()
 
 	scenarios = load_scenarios(SCENARIO_DIR, args.scenario)
@@ -342,6 +368,7 @@ def main() -> None:
 			output_dir,
 			capture_telemetry=not args.no_telemetry,
 			verbose=args.verbose,
+			seed=args.seed,
 		)
 		all_summaries.append(summary)
 
