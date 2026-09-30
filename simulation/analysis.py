@@ -498,14 +498,7 @@ class ScenarioExplorer:
 
 	@property
 	def scenario_names(self) -> list[str]:
-		return sorted(
-			self._scenario_dirs.keys(),
-			key=lambda n: (
-				list(self._scenario_dirs.keys()).index(n)
-				if n in self._scenario_dirs
-				else 0
-			),
-		)
+		return list(self._scenario_dirs)
 
 	def list_scenarios(self) -> list[str]:
 		return list(self._scenario_dirs.keys())

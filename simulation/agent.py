@@ -408,7 +408,7 @@ class CombatAgent(mesa.Agent):
 		)
 
 		if hasattr(self.model, "apply_obstacle_damage") and target.pos is not None:
-			self.model.apply_obstacle_damage(target.pos, damage, self.team)
+			self.model.apply_obstacle_damage(target.pos, damage)
 		effective_damage = target.receive_damage(damage, attacker=self)
 		if hasattr(self.model, "record_attack"):
 			self.model.record_attack(
@@ -450,15 +450,9 @@ class CombatAgent(mesa.Agent):
 			)
 
 		if self.pos is not None and hasattr(self.model, "grid"):
-			try:
-				self.model.grid.remove_agent(self)
-			except Exception:
-				pass
+			self.model.grid.remove_agent(self)
 
-		try:
-			self.remove()
-		except Exception:
-			pass
+		self.remove()
 
 	def get_visible_enemies(self) -> list["CombatAgent"]:
 		enemies_with_score: list[tuple[CombatAgent, float]] = []
