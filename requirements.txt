@@ -1,9 +1,7 @@
 mesa
-networkx
 matplotlib
 numpy
 pandas
-seaborn
 ruff
 pytest
 pytest-cov
