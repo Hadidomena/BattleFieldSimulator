@@ -22,27 +22,24 @@ class TelemetryCollector:
 
 	def record_step(self, model: BattlefieldModel) -> None:
 		step = model.steps
-		alive_blue = model.alive_count("Blue")
-		alive_red = model.alive_count("Red")
-
-		self.model_records.append(
-			{
-				"step": step,
-				"alive_blue": alive_blue,
-				"alive_red": alive_red,
-				"eliminated_blue": model.eliminated_by_team["Blue"],
-				"eliminated_red": model.eliminated_by_team["Red"],
-				"kills_blue": model.kills_by_team["Blue"],
-				"kills_red": model.kills_by_team["Red"],
-				"shots_blue": model.shots_by_team["Blue"],
-				"shots_red": model.shots_by_team["Red"],
-				"hits_blue": model.hits_by_team["Blue"],
-				"hits_red": model.hits_by_team["Red"],
-				"damage_blue": model.damage_by_team["Blue"],
-				"damage_red": model.damage_by_team["Red"],
-				"battle_over": model.is_battle_over(),
-			}
+		record: dict = {
+			"step": step,
+			"alive_blue": model.alive_count("Blue"),
+			"alive_red": model.alive_count("Red"),
+		}
+		metrics = (
+			("eliminated", "eliminated_by_team"),
+			("kills", "kills_by_team"),
+			("shots", "shots_by_team"),
+			("hits", "hits_by_team"),
+			("damage", "damage_by_team"),
 		)
+		for label, attr in metrics:
+			by_team = getattr(model, attr)
+			record[f"{label}_blue"] = by_team["Blue"]
+			record[f"{label}_red"] = by_team["Red"]
+		record["battle_over"] = model.is_battle_over()
+		self.model_records.append(record)
 
 		for agent in model.agents:
 			agent_class = type(agent).__name__

@@ -306,16 +306,7 @@ class CombatAgent(mesa.Agent):
 			self._covering_fire(self.get_visible_enemies())
 			return
 
-		step_index = min(self.mobility, len(path) - 1)
-		old_position = self.pos
-		new_position = path[step_index]
-		self.model.grid.move_agent(self, new_position)
-
-		if len(path) >= 2:
-			dx = path[1][0] - old_position[0]
-			dy = path[1][1] - old_position[1]
-			if (dx, dy) != (0, 0):
-				self.facing_direction = (dx, dy)
+		self._advance_along_path(path)
 
 		self._covering_fire(self.get_visible_enemies())
 
@@ -546,6 +537,19 @@ class CombatAgent(mesa.Agent):
 			if (dx, dy) != (0, 0):
 				self.facing_direction = (dx, dy)
 
+	def _advance_along_path(self, path: list[tuple[int, int]]) -> None:
+		step_index = min(self.mobility, len(path) - 1)
+		old_position = self.pos
+		new_position = path[step_index]
+		self.model.grid.move_agent(self, new_position)
+		self.current_path = path
+
+		direction_step = path[1]
+		dx = direction_step[0] - old_position[0]
+		dy = direction_step[1] - old_position[1]
+		if (dx, dy) != (0, 0):
+			self.facing_direction = (dx, dy)
+
 	def move(self, target_position: tuple[int, int] | None = None) -> None:
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
@@ -573,17 +577,7 @@ class CombatAgent(mesa.Agent):
 			self._move_randomly()
 			return
 
-		step_index = min(self.mobility, len(path) - 1)
-		old_position = self.pos
-		new_position = path[step_index]
-		self.model.grid.move_agent(self, new_position)
-		self.current_path = path
-
-		direction_step = path[1]
-		dx = direction_step[0] - old_position[0]
-		dy = direction_step[1] - old_position[1]
-		if (dx, dy) != (0, 0):
-			self.facing_direction = (dx, dy)
+		self._advance_along_path(path)
 
 
 class InfantrySquad(CombatAgent):

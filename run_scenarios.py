@@ -129,27 +129,25 @@ def run_single_simulation(
 	with redirect_stdout(stdout_target) if not verbose else nullcontext():
 		run_model(model, steps, on_step=_print_step_debug if verbose else None)
 
-	blue_alive = model.alive_count("Blue")
-	red_alive = model.alive_count("Red")
-
-	return {
-		"blue_alive": blue_alive,
-		"red_alive": red_alive,
-		"blue_kills": model.kills_by_team["Blue"],
-		"red_kills": model.kills_by_team["Red"],
-		"blue_damage": model.damage_by_team["Blue"],
-		"red_damage": model.damage_by_team["Red"],
-		"blue_shots": model.shots_by_team["Blue"],
-		"red_shots": model.shots_by_team["Red"],
-		"blue_hits": model.hits_by_team["Blue"],
-		"red_hits": model.hits_by_team["Red"],
-		"blue_eliminated": model.eliminated_by_team["Blue"],
-		"red_eliminated": model.eliminated_by_team["Red"],
+	result: dict = {
+		"blue_alive": model.alive_count("Blue"),
+		"red_alive": model.alive_count("Red"),
 		"steps_run": model.steps,
 		"model_telemetry": model.telemetry.model_records,
 		"agent_telemetry": model.telemetry.agent_records,
 		"event_telemetry": model.telemetry.event_records,
 	}
+	for label, attr in (
+		("kills", "kills_by_team"),
+		("damage", "damage_by_team"),
+		("shots", "shots_by_team"),
+		("hits", "hits_by_team"),
+		("eliminated", "eliminated_by_team"),
+	):
+		by_team = getattr(model, attr)
+		result[f"blue_{label}"] = by_team["Blue"]
+		result[f"red_{label}"] = by_team["Red"]
+	return result
 
 
 def aggregate_results(runs: list[dict]) -> dict:

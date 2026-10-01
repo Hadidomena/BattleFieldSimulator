@@ -16,6 +16,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RESULTS_DIR = PROJECT_ROOT / "data" / "scenarios" / "results"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "scenarios" / "analysis"
 
+BLUE_COLOR = "#2166ac"
+RED_COLOR = "#b2182b"
+BLUE_COLOR_LIGHT = "#4393c3"
+RED_COLOR_LIGHT = "#f4a582"
+
 
 class ScenarioAnalyzer:
 	def __init__(self, results_dir: str | Path, output_dir: str | Path):
@@ -40,6 +45,39 @@ class ScenarioAnalyzer:
 	def scenario_count(self) -> int:
 		return len(self.summaries)
 
+	def _bar_comparison(
+		self,
+		filename: str,
+		blue_values: list[float],
+		red_values: list[float],
+		blue_label: str,
+		red_label: str,
+		title: str,
+		ylabel: str,
+		blue_color: str = BLUE_COLOR,
+		red_color: str = RED_COLOR,
+	) -> Path:
+		names = [self._short_name(s) for s in self.summaries]
+		fig, ax = plt.subplots(figsize=(14, 6))
+		x = np.arange(len(names))
+		width = 0.35
+
+		ax.bar(x - width / 2, blue_values, width, label=blue_label, color=blue_color)
+		ax.bar(x + width / 2, red_values, width, label=red_label, color=red_color)
+
+		ax.set_ylabel(ylabel)
+		ax.set_title(title)
+		ax.set_xticks(x)
+		ax.set_xticklabels(names, rotation=45, ha="right", fontsize=8)
+		ax.legend()
+		ax.grid(axis="y", alpha=0.3)
+
+		plt.tight_layout()
+		path = self.output_dir / filename
+		fig.savefig(path, dpi=150)
+		plt.close(fig)
+		return path
+
 	def plot_win_rates(self) -> Path:
 		names = [self._short_name(s) for s in self.summaries]
 		blue_wins = [s["blue_win_rate"] * 100 for s in self.summaries]
@@ -50,9 +88,9 @@ class ScenarioAnalyzer:
 		width = 0.25
 
 		bars_blue = ax.bar(
-			x - width, blue_wins, width, label="Blue Win %", color="#2166ac"
+			x - width, blue_wins, width, label="Blue Win %", color=BLUE_COLOR
 		)
-		bars_red = ax.bar(x, red_wins, width, label="Red Win %", color="#b2182b")
+		bars_red = ax.bar(x, red_wins, width, label="Red Win %", color=RED_COLOR)
 
 		ax.set_ylabel("Win Rate (%)")
 		ax.set_title("Scenario Win Rates — Blue vs Red")
@@ -91,116 +129,68 @@ class ScenarioAnalyzer:
 		return path
 
 	def plot_damage_comparison(self) -> Path:
-		names = [self._short_name(s) for s in self.summaries]
-		blue_dmg = [s["avg_blue_damage"] for s in self.summaries]
-		red_dmg = [s["avg_red_damage"] for s in self.summaries]
-
-		fig, ax = plt.subplots(figsize=(14, 7))
-		x = np.arange(len(names))
-		width = 0.35
-
-		ax.bar(x - width / 2, blue_dmg, width, label="Blue Avg Damage", color="#4393c3")
-		ax.bar(x + width / 2, red_dmg, width, label="Red Avg Damage", color="#f4a582")
-
-		ax.set_ylabel("Average Damage Dealt")
-		ax.set_title("Total Damage Dealt per Team — All Scenarios")
-		ax.set_xticks(x)
-		ax.set_xticklabels(names, rotation=45, ha="right", fontsize=8)
-		ax.legend()
-		ax.grid(axis="y", alpha=0.3)
-
-		plt.tight_layout()
-		path = self.output_dir / "02_damage_comparison.png"
-		fig.savefig(path, dpi=150)
-		plt.close(fig)
-		return path
+		return self._bar_comparison(
+			"02_damage_comparison.png",
+			[s["avg_blue_damage"] for s in self.summaries],
+			[s["avg_red_damage"] for s in self.summaries],
+			"Blue Avg Damage",
+			"Red Avg Damage",
+			"Total Damage Dealt per Team — All Scenarios",
+			"Average Damage Dealt",
+			BLUE_COLOR_LIGHT,
+			RED_COLOR_LIGHT,
+		)
 
 	def plot_hit_rates(self) -> Path:
-		names = [self._short_name(s) for s in self.summaries]
-		blue_hr = []
-		red_hr = []
-		for s in self.summaries:
-			bh = s["avg_blue_hits"] / max(1, s["avg_blue_shots"]) * 100
-			rh = s["avg_red_hits"] / max(1, s["avg_red_shots"]) * 100
-			blue_hr.append(bh)
-			red_hr.append(rh)
-
-		fig, ax = plt.subplots(figsize=(14, 6))
-		x = np.arange(len(names))
-		width = 0.35
-
-		ax.bar(x - width / 2, blue_hr, width, label="Blue Hit Rate %", color="#4393c3")
-		ax.bar(x + width / 2, red_hr, width, label="Red Hit Rate %", color="#f4a582")
-		ax.axhline(y=50, color="gray", linestyle="--", alpha=0.3, label="50% baseline")
-
-		ax.set_ylabel("Hit Rate (%)")
-		ax.set_title("Hit Rate Comparison — Blue vs Red")
-		ax.set_xticks(x)
-		ax.set_xticklabels(names, rotation=45, ha="right", fontsize=8)
-		ax.set_ylim(0, 100)
-		ax.legend()
-		ax.grid(axis="y", alpha=0.3)
-
-		plt.tight_layout()
-		path = self.output_dir / "03_hit_rates.png"
-		fig.savefig(path, dpi=150)
-		plt.close(fig)
+		blue_hr = [
+			s["avg_blue_hits"] / max(1, s["avg_blue_shots"]) * 100
+			for s in self.summaries
+		]
+		red_hr = [
+			s["avg_red_hits"] / max(1, s["avg_red_shots"]) * 100 for s in self.summaries
+		]
+		path = self._bar_comparison(
+			"03_hit_rates.png",
+			blue_hr,
+			red_hr,
+			"Blue Hit Rate %",
+			"Red Hit Rate %",
+			"Hit Rate Comparison — Blue vs Red",
+			"Hit Rate (%)",
+			BLUE_COLOR_LIGHT,
+			RED_COLOR_LIGHT,
+		)
 		return path
 
 	def plot_kill_comparison(self) -> Path:
-		names = [self._short_name(s) for s in self.summaries]
-		blue_k = [s["avg_blue_kills"] for s in self.summaries]
-		red_k = [s["avg_red_kills"] for s in self.summaries]
-
-		fig, ax = plt.subplots(figsize=(14, 6))
-		x = np.arange(len(names))
-		width = 0.35
-
-		ax.bar(x - width / 2, blue_k, width, label="Blue Avg Kills", color="#2166ac")
-		ax.bar(x + width / 2, red_k, width, label="Red Avg Kills", color="#b2182b")
-
-		ax.set_ylabel("Average Kills")
-		ax.set_title("Kill Comparison — Blue vs Red")
-		ax.set_xticks(x)
-		ax.set_xticklabels(names, rotation=45, ha="right", fontsize=8)
-		ax.legend()
-		ax.grid(axis="y", alpha=0.3)
-
-		plt.tight_layout()
-		path = self.output_dir / "04_kill_comparison.png"
-		fig.savefig(path, dpi=150)
-		plt.close(fig)
-		return path
+		return self._bar_comparison(
+			"04_kill_comparison.png",
+			[s["avg_blue_kills"] for s in self.summaries],
+			[s["avg_red_kills"] for s in self.summaries],
+			"Blue Avg Kills",
+			"Red Avg Kills",
+			"Kill Comparison — Blue vs Red",
+			"Average Kills",
+		)
 
 	def plot_battle_efficiency(self) -> Path:
-		names = [self._short_name(s) for s in self.summaries]
-		blue_eff = []
-		red_eff = []
-		for s in self.summaries:
-			be = s["avg_blue_damage"] / max(1, s["avg_steps_run"])
-			re = s["avg_red_damage"] / max(1, s["avg_steps_run"])
-			blue_eff.append(be)
-			red_eff.append(re)
-
-		fig, ax = plt.subplots(figsize=(14, 6))
-		x = np.arange(len(names))
-		width = 0.35
-
-		ax.bar(x - width / 2, blue_eff, width, label="Blue DPS", color="#4393c3")
-		ax.bar(x + width / 2, red_eff, width, label="Red DPS", color="#f4a582")
-
-		ax.set_ylabel("Damage Per Step")
-		ax.set_title("Combat Efficiency (Damage per Step)")
-		ax.set_xticks(x)
-		ax.set_xticklabels(names, rotation=45, ha="right", fontsize=8)
-		ax.legend()
-		ax.grid(axis="y", alpha=0.3)
-
-		plt.tight_layout()
-		path = self.output_dir / "05_battle_efficiency.png"
-		fig.savefig(path, dpi=150)
-		plt.close(fig)
-		return path
+		blue_eff = [
+			s["avg_blue_damage"] / max(1, s["avg_steps_run"]) for s in self.summaries
+		]
+		red_eff = [
+			s["avg_red_damage"] / max(1, s["avg_steps_run"]) for s in self.summaries
+		]
+		return self._bar_comparison(
+			"05_battle_efficiency.png",
+			blue_eff,
+			red_eff,
+			"Blue DPS",
+			"Red DPS",
+			"Combat Efficiency (Damage per Step)",
+			"Damage Per Step",
+			BLUE_COLOR_LIGHT,
+			RED_COLOR_LIGHT,
+		)
 
 	def plot_summary_matrix(self) -> Path:
 		names = [self._short_name(s) for s in self.summaries]
@@ -250,7 +240,6 @@ class ScenarioAnalyzer:
 		return path
 
 	def plot_kill_death_ratio(self) -> Path:
-		names = [self._short_name(s) for s in self.summaries]
 		blue_kdr = [
 			s["avg_blue_kills"] / max(0.5, s["avg_blue_eliminated"])
 			for s in self.summaries
@@ -259,56 +248,34 @@ class ScenarioAnalyzer:
 			s["avg_red_kills"] / max(0.5, s["avg_red_eliminated"])
 			for s in self.summaries
 		]
-
-		fig, ax = plt.subplots(figsize=(14, 6))
-		x = np.arange(len(names))
-		width = 0.35
-
-		ax.bar(x - width / 2, blue_kdr, width, label="Blue KDR", color="#2166ac")
-		ax.bar(x + width / 2, red_kdr, width, label="Red KDR", color="#b2182b")
-		ax.axhline(y=1, color="gray", linestyle="--", alpha=0.5)
-
-		ax.set_ylabel("Kills per Loss")
-		ax.set_title("Kill/Death Ratio per Team — All Scenarios")
-		ax.set_xticks(x)
-		ax.set_xticklabels(names, rotation=45, ha="right", fontsize=8)
-		ax.legend()
-		ax.grid(axis="y", alpha=0.3)
-
-		plt.tight_layout()
-		path = self.output_dir / "07_kill_death_ratio.png"
-		fig.savefig(path, dpi=150)
-		plt.close(fig)
-		return path
+		return self._bar_comparison(
+			"07_kill_death_ratio.png",
+			blue_kdr,
+			red_kdr,
+			"Blue KDR",
+			"Red KDR",
+			"Kill/Death Ratio per Team — All Scenarios",
+			"Kills per Loss",
+		)
 
 	def plot_damage_efficiency(self) -> Path:
-		names = [self._short_name(s) for s in self.summaries]
 		blue_dpe = [
 			s["avg_blue_damage"] / max(1, s["avg_blue_shots"]) for s in self.summaries
 		]
 		red_dpe = [
 			s["avg_red_damage"] / max(1, s["avg_red_shots"]) for s in self.summaries
 		]
-
-		fig, ax = plt.subplots(figsize=(14, 6))
-		x = np.arange(len(names))
-		width = 0.35
-
-		ax.bar(x - width / 2, blue_dpe, width, label="Blue Dmg/Shot", color="#4393c3")
-		ax.bar(x + width / 2, red_dpe, width, label="Red Dmg/Shot", color="#f4a582")
-
-		ax.set_ylabel("Damage per Shot Fired")
-		ax.set_title("Damage Efficiency (Damage per Shot) — All Scenarios")
-		ax.set_xticks(x)
-		ax.set_xticklabels(names, rotation=45, ha="right", fontsize=8)
-		ax.legend()
-		ax.grid(axis="y", alpha=0.3)
-
-		plt.tight_layout()
-		path = self.output_dir / "08_damage_efficiency.png"
-		fig.savefig(path, dpi=150)
-		plt.close(fig)
-		return path
+		return self._bar_comparison(
+			"08_damage_efficiency.png",
+			blue_dpe,
+			red_dpe,
+			"Blue Dmg/Shot",
+			"Red Dmg/Shot",
+			"Damage Efficiency (Damage per Shot) — All Scenarios",
+			"Damage per Shot Fired",
+			BLUE_COLOR_LIGHT,
+			RED_COLOR_LIGHT,
+		)
 
 	def plot_battle_duration(self) -> Path:
 		names = [self._short_name(s) for s in self.summaries]
@@ -352,7 +319,6 @@ class ScenarioAnalyzer:
 		return path
 
 	def plot_survival_rates(self) -> Path:
-		names = [self._short_name(s) for s in self.summaries]
 		blue_surv = []
 		red_surv = []
 		for s in self.summaries:
@@ -360,29 +326,17 @@ class ScenarioAnalyzer:
 			red_total = s["avg_red_alive"] + s["avg_red_eliminated"]
 			blue_surv.append(s["avg_blue_alive"] / max(1, blue_total) * 100)
 			red_surv.append(s["avg_red_alive"] / max(1, red_total) * 100)
-
-		fig, ax = plt.subplots(figsize=(14, 6))
-		x = np.arange(len(names))
-		width = 0.35
-
-		ax.bar(
-			x - width / 2, blue_surv, width, label="Blue Survivors %", color="#4393c3"
+		return self._bar_comparison(
+			"10_survival_rates.png",
+			blue_surv,
+			red_surv,
+			"Blue Survivors %",
+			"Red Survivors %",
+			"Force Survival Rate per Scenario",
+			"Survivors (% of starting force)",
+			BLUE_COLOR_LIGHT,
+			RED_COLOR_LIGHT,
 		)
-		ax.bar(x + width / 2, red_surv, width, label="Red Survivors %", color="#f4a582")
-
-		ax.set_ylabel("Survivors (% of starting force)")
-		ax.set_title("Force Survival Rate per Scenario")
-		ax.set_xticks(x)
-		ax.set_xticklabels(names, rotation=45, ha="right", fontsize=8)
-		ax.set_ylim(0, 110)
-		ax.legend()
-		ax.grid(axis="y", alpha=0.3)
-
-		plt.tight_layout()
-		path = self.output_dir / "10_survival_rates.png"
-		fig.savefig(path, dpi=150)
-		plt.close(fig)
-		return path
 
 	def generate_report(self) -> Path:
 		report_path = self.output_dir / "analysis_report.txt"
@@ -503,92 +457,82 @@ class ScenarioExplorer:
 	def list_scenarios(self) -> list[str]:
 		return list(self._scenario_dirs.keys())
 
-	def _load_model_telemetry(self, scenario_name: str) -> pd.DataFrame:
+	def _load_run_telemetry(
+		self, scenario_name: str, filename: str, label: str
+	) -> pd.DataFrame:
 		scenario_dir = self._scenario_dirs[scenario_name]
 		frames = []
 		for run_dir in sorted(scenario_dir.glob("run_*")):
-			csv_path = run_dir / "model_telemetry.csv"
+			csv_path = run_dir / filename
 			if csv_path.exists():
 				df = pd.read_csv(csv_path)
 				df = df.assign(run=int(run_dir.name.split("_")[1]))
 				frames.append(df)
 		if not frames:
-			raise FileNotFoundError(f"No model telemetry found for {scenario_name}")
+			raise FileNotFoundError(f"No {label} telemetry found for {scenario_name}")
 		return pd.concat(frames, ignore_index=True)
+
+	def _load_model_telemetry(self, scenario_name: str) -> pd.DataFrame:
+		return self._load_run_telemetry(scenario_name, "model_telemetry.csv", "model")
 
 	def _load_event_telemetry(self, scenario_name: str) -> pd.DataFrame:
-		scenario_dir = self._scenario_dirs[scenario_name]
-		frames = []
-		for run_dir in sorted(scenario_dir.glob("run_*")):
-			csv_path = run_dir / "event_telemetry.csv"
-			if csv_path.exists():
-				df = pd.read_csv(csv_path)
-				df = df.assign(run=int(run_dir.name.split("_")[1]))
-				frames.append(df)
-		if not frames:
-			raise FileNotFoundError(f"No event telemetry found for {scenario_name}")
-		return pd.concat(frames, ignore_index=True)
+		return self._load_run_telemetry(scenario_name, "event_telemetry.csv", "event")
 
 	def _load_agent_telemetry(self, scenario_name: str) -> pd.DataFrame:
-		scenario_dir = self._scenario_dirs[scenario_name]
-		frames = []
-		for run_dir in sorted(scenario_dir.glob("run_*")):
-			csv_path = run_dir / "agent_telemetry.csv"
-			if csv_path.exists():
-				df = pd.read_csv(csv_path)
-				df = df.assign(run=int(run_dir.name.split("_")[1]))
-				frames.append(df)
-		if not frames:
-			raise FileNotFoundError(f"No agent telemetry found for {scenario_name}")
-		return pd.concat(frames, ignore_index=True)
+		return self._load_run_telemetry(scenario_name, "agent_telemetry.csv", "agent")
 
 	def _scenario_output_dir(self, scenario_name: str) -> Path:
 		path = self.output_dir / _sanitize_filename(scenario_name)
 		path.mkdir(parents=True, exist_ok=True)
 		return path
 
-	def plot_population_curves(self, scenario_name: str) -> Path:
-		df = self._load_model_telemetry(scenario_name)
-		agg = (
-			df.groupby("step")[["alive_blue", "alive_red"]]
+	def _aggregate_over_steps(
+		self, df: pd.DataFrame, blue_col: str, red_col: str
+	) -> pd.DataFrame:
+		return (
+			df.groupby("step")[[blue_col, red_col]]
 			.agg(
-				mean_blue=("alive_blue", "mean"),
-				min_blue=("alive_blue", "min"),
-				max_blue=("alive_blue", "max"),
-				mean_red=("alive_red", "mean"),
-				min_red=("alive_red", "min"),
-				max_red=("alive_red", "max"),
+				mean_blue=(blue_col, "mean"),
+				min_blue=(blue_col, "min"),
+				max_blue=(blue_col, "max"),
+				mean_red=(red_col, "mean"),
+				min_red=(red_col, "min"),
+				max_red=(red_col, "max"),
 			)
 			.reset_index()
 		)
 
+	def _plot_team_bands(
+		self,
+		agg: pd.DataFrame,
+		blue_color: str,
+		red_color: str,
+	) -> tuple[plt.Figure, plt.Axes]:
 		fig, ax = plt.subplots(figsize=(12, 6))
 		ax.fill_between(
-			agg["step"],
-			agg["min_blue"],
-			agg["max_blue"],
-			alpha=0.2,
-			color="#2166ac",
+			agg["step"], agg["min_blue"], agg["max_blue"], alpha=0.2, color=blue_color
 		)
 		ax.plot(
-			agg["step"], agg["mean_blue"], color="#2166ac", linewidth=2, label="Blue"
+			agg["step"], agg["mean_blue"], color=blue_color, linewidth=2, label="Blue"
 		)
 		ax.fill_between(
-			agg["step"],
-			agg["min_red"],
-			agg["max_red"],
-			alpha=0.2,
-			color="#b2182b",
+			agg["step"], agg["min_red"], agg["max_red"], alpha=0.2, color=red_color
 		)
-		ax.plot(agg["step"], agg["mean_red"], color="#b2182b", linewidth=2, label="Red")
-
+		ax.plot(agg["step"], agg["mean_red"], color=red_color, linewidth=2, label="Red")
 		ax.set_xlabel("Step")
-		ax.set_ylabel("Agents Alive")
-		ax.set_title(f"Population Over Time — {scenario_name}")
 		ax.legend()
 		ax.grid(alpha=0.3)
-		ax.set_ylim(bottom=0)
 		ax.set_xlim(left=0)
+		return fig, ax
+
+	def plot_population_curves(self, scenario_name: str) -> Path:
+		df = self._load_model_telemetry(scenario_name)
+		agg = self._aggregate_over_steps(df, "alive_blue", "alive_red")
+
+		fig, ax = self._plot_team_bands(agg, BLUE_COLOR, RED_COLOR)
+		ax.set_ylabel("Agents Alive")
+		ax.set_title(f"Population Over Time — {scenario_name}")
+		ax.set_ylim(bottom=0)
 
 		plt.tight_layout()
 		path = self._scenario_output_dir(scenario_name) / "population_curves.png"
@@ -598,45 +542,11 @@ class ScenarioExplorer:
 
 	def plot_damage_accumulation(self, scenario_name: str) -> Path:
 		df = self._load_model_telemetry(scenario_name)
-		agg = (
-			df.groupby("step")[["damage_blue", "damage_red"]]
-			.agg(
-				mean_blue=("damage_blue", "mean"),
-				min_blue=("damage_blue", "min"),
-				max_blue=("damage_blue", "max"),
-				mean_red=("damage_red", "mean"),
-				min_red=("damage_red", "min"),
-				max_red=("damage_red", "max"),
-			)
-			.reset_index()
-		)
+		agg = self._aggregate_over_steps(df, "damage_blue", "damage_red")
 
-		fig, ax = plt.subplots(figsize=(12, 6))
-		ax.fill_between(
-			agg["step"],
-			agg["min_blue"],
-			agg["max_blue"],
-			alpha=0.2,
-			color="#4393c3",
-		)
-		ax.plot(
-			agg["step"], agg["mean_blue"], color="#4393c3", linewidth=2, label="Blue"
-		)
-		ax.fill_between(
-			agg["step"],
-			agg["min_red"],
-			agg["max_red"],
-			alpha=0.2,
-			color="#f4a582",
-		)
-		ax.plot(agg["step"], agg["mean_red"], color="#f4a582", linewidth=2, label="Red")
-
-		ax.set_xlabel("Step")
+		fig, ax = self._plot_team_bands(agg, BLUE_COLOR_LIGHT, RED_COLOR_LIGHT)
 		ax.set_ylabel("Cumulative Damage Dealt")
 		ax.set_title(f"Damage Accumulation Over Time — {scenario_name}")
-		ax.legend()
-		ax.grid(alpha=0.3)
-		ax.set_xlim(left=0)
 
 		plt.tight_layout()
 		path = self._scenario_output_dir(scenario_name) / "damage_accumulation.png"
@@ -648,9 +558,9 @@ class ScenarioExplorer:
 		df = self._load_agent_telemetry(scenario_name)
 		state_order = ["advance", "engage", "retreat", "patrol"]
 		state_colors = {
-			"advance": "#4393c3",
-			"engage": "#b2182b",
-			"retreat": "#f4a582",
+			"advance": BLUE_COLOR_LIGHT,
+			"engage": RED_COLOR,
+			"retreat": RED_COLOR_LIGHT,
 			"patrol": "#999999",
 		}
 
@@ -761,10 +671,12 @@ class ScenarioExplorer:
 		hit_damages = df.loc[df["event_type"] == "hit", "damage"]
 
 		fig, ax = plt.subplots(figsize=(10, 5))
-		ax.hist(hit_damages, bins=30, color="#4393c3", edgecolor="white", alpha=0.8)
+		ax.hist(
+			hit_damages, bins=30, color=BLUE_COLOR_LIGHT, edgecolor="white", alpha=0.8
+		)
 		ax.axvline(
 			hit_damages.mean(),
-			color="#b2182b",
+			color=RED_COLOR,
 			linestyle="--",
 			linewidth=2,
 			label=f"Mean: {hit_damages.mean():.1f}",
@@ -796,7 +708,7 @@ class ScenarioExplorer:
 			raise ValueError(f"Run {run_index} not found for {scenario_name}")
 
 		fig, ax = plt.subplots(figsize=(12, 5))
-		team_colors = {"Blue": "#2166ac", "Red": "#b2182b"}
+		team_colors = {"Blue": BLUE_COLOR, "Red": RED_COLOR}
 
 		for agent_id in sorted(run_df["unique_id"].unique()):
 			agent_df = run_df[run_df["unique_id"] == agent_id].sort_values("step")
