@@ -82,22 +82,17 @@ class CombatAgent(mesa.Agent):
 
 		if self.ai_state == "retreat":
 			self.retreat(visible_before_move)
-		elif self.ai_state == "engage":
-			target = self._pick_attack_target(visible_before_move)
-			if target is not None:
-				self.attack(target)
+		elif (
+			self.ai_state == "engage"
+			and self._pick_attack_target(visible_before_move) is not None
+		):
+			self.attack_closest_target(visible_before_move)
+		else:
+			if self.ai_state == "patrol":
+				self.patrol_step()
 			else:
 				self.move()
-				visible_after_move = self.get_visible_enemies()
-				self.attack_closest_target(visible_after_move)
-		elif self.ai_state == "patrol":
-			self.patrol_step()
-			visible_after_move = self.get_visible_enemies()
-			self.attack_closest_target(visible_after_move)
-		else:
-			self.move()
-			visible_after_move = self.get_visible_enemies()
-			self.attack_closest_target(visible_after_move)
+			self.attack_closest_target(self.get_visible_enemies())
 
 	def update_behavior_state(self, visible_enemies: list["CombatAgent"]) -> None:
 		has_visible_enemy = len(visible_enemies) > 0

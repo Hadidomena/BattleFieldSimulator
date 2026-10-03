@@ -349,31 +349,27 @@ class ScenarioAnalyzer:
 		lines.append("")
 
 		for s in self.summaries:
-			name = s["scenario_name"]
-			hyp = s.get("hypothesis", "")
-			bwr = s["blue_win_rate"]
-			rwr = s["red_win_rate"]
-			dr = s["draw_rate"]
-			bk = s["avg_blue_kills"]
-			rk = s["avg_red_kills"]
-			bd = s["avg_blue_damage"]
-			rd = s["avg_red_damage"]
-			steps = s["avg_steps_run"]
-			runs = s["run_count"]
-			total_steps = s["total_steps"]
-
 			lines.append("-" * 70)
-			lines.append(f"SCENARIO: {name}")
+			lines.append(f"SCENARIO: {s['scenario_name']}")
 			lines.append(
-				f"  Runs: {runs} x {total_steps} steps | Avg duration: {steps:.1f} steps"
+				f"  Runs: {s['run_count']} x {s['total_steps']} steps | "
+				f"Avg duration: {s['avg_steps_run']:.1f} steps"
 			)
-			lines.append(f"  Hypothesis: {hyp}")
+			lines.append(f"  Hypothesis: {s.get('hypothesis', '')}")
 			lines.append("")
 			lines.append(
-				f"  Blue Win Rate: {bwr:.0%}  |  Red Win Rate: {rwr:.0%}  |  Draws: {dr:.0%}"  # noqa
+				f"  Blue Win Rate: {s['blue_win_rate']:.0%}  |  "
+				f"Red Win Rate: {s['red_win_rate']:.0%}  |  "
+				f"Draws: {s['draw_rate']:.0%}"
 			)
-			lines.append(f"  Blue Kills: {bk:.1f} avg  |  Red Kills: {rk:.1f} avg")
-			lines.append(f"  Blue Damage: {bd:.0f} avg  |  Red Damage: {rd:.0f} avg")
+			lines.append(
+				f"  Blue Kills: {s['avg_blue_kills']:.1f} avg  |  "
+				f"Red Kills: {s['avg_red_kills']:.1f} avg"
+			)
+			lines.append(
+				f"  Blue Damage: {s['avg_blue_damage']:.0f} avg  |  "
+				f"Red Damage: {s['avg_red_damage']:.0f} avg"
+			)
 			lines.append("")
 
 		report_text = "\n".join(lines)
