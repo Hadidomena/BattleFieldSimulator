@@ -1,10 +1,10 @@
 import argparse
 import sys
-from pathlib import Path
 
 import numpy as np
 
 from simulation.model import BattlefieldModel
+from simulation.utils import is_walkable, load_board, run_model
 
 DEFAULT_STEPS = 10
 
@@ -29,21 +29,10 @@ def _default_spawn_points(
 		for column in candidate_columns:
 			if len(positions) >= count:
 				return positions
-			if 0 <= row < height and 0 <= column < width and board[row, column] != 1:
+			if is_walkable((column, row), board):
 				positions.append((column, row))
 
 	return positions
-
-
-def load_board(path: str) -> np.ndarray:
-	p = Path(path)
-	if not p.exists():
-		raise FileNotFoundError(f"Map file not found: {path}")
-	try:
-		board = np.loadtxt(p, delimiter=",", dtype=int)
-	except Exception:
-		board = np.loadtxt(p, dtype=int)
-	return board
 
 
 def _resolve_step_count(steps: int) -> int:
@@ -53,11 +42,15 @@ def _resolve_step_count(steps: int) -> int:
 	if sys.stdin.isatty():
 		while True:
 			try:
-				return int(input("How many steps should the simulation run for? "))
+				value = int(input("How many steps should the simulation run for? "))
 			except ValueError:
 				print("Please enter a whole number.")
+				continue
 			except EOFError:
 				break
+			if value >= 0:
+				return value
+			print("Please enter a non-negative whole number.")
 
 	print(f"No step count provided; defaulting to {DEFAULT_STEPS} steps.")
 	return DEFAULT_STEPS
@@ -139,10 +132,7 @@ def main() -> None:
 	num_steps = _resolve_step_count(args.steps)
 
 	print(f"Running simulation for {num_steps} steps...\n")
-	for _ in range(num_steps):
-		if not model.running:
-			break
-		model.step()
+	run_model(model, num_steps)
 
 	print("\nResults (Analytics Module)")
 	df = model.datacollector.get_model_vars_dataframe()

@@ -3,6 +3,7 @@ import numpy as np
 
 from simulation.agent import CombatAgent
 from simulation.telemetry import TelemetryCollector
+from simulation.utils import is_position_in_bounds
 
 
 class BattlefieldModel(mesa.Model):
@@ -17,6 +18,7 @@ class BattlefieldModel(mesa.Model):
 		red_spawn_points: list[tuple[int, int]] | None = None,
 		obstacle_max_hp: float = 50.0,
 		seed: int | None = None,
+		spawn_agents: bool = True,
 	) -> None:
 		super().__init__(rng=seed)
 		self.width = board.shape[1]
@@ -28,6 +30,7 @@ class BattlefieldModel(mesa.Model):
 		self.red_unit_kwargs = red_unit_kwargs or {}
 		self.blue_spawn_points = blue_spawn_points
 		self.red_spawn_points = red_spawn_points
+		self.spawn_agents = spawn_agents
 		self.grid = mesa.space.MultiGrid(self.width, self.height, torus=False)
 		self.eliminated_by_team = {"Blue": 0, "Red": 0}
 		self.kills_by_team = {"Blue": 0, "Red": 0}
@@ -38,19 +41,10 @@ class BattlefieldModel(mesa.Model):
 		self.obstacle_hp = np.zeros_like(board, dtype=float)
 		self.obstacle_hp[board == 1] = obstacle_max_hp
 		self.destroyed_obstacles = 0
-		self.destroyed_obstacles_by_team: dict[str, int] = {"Blue": 0, "Red": 0}
 		self.datacollector = mesa.DataCollector(
 			model_reporters={
-				"Alive_Blue": lambda m: sum(
-					1
-					for a in m.agents
-					if getattr(a, "team", None) == "Blue" and getattr(a, "hp", 0) > 0
-				),
-				"Alive_Red": lambda m: sum(
-					1
-					for a in m.agents
-					if getattr(a, "team", None) == "Red" and getattr(a, "hp", 0) > 0
-				),
+				"Alive_Blue": lambda m: m.alive_count("Blue"),
+				"Alive_Red": lambda m: m.alive_count("Red"),
 				"Eliminated_Blue": lambda m: m.eliminated_by_team["Blue"],
 				"Eliminated_Red": lambda m: m.eliminated_by_team["Red"],
 				"Kills_Blue": lambda m: m.kills_by_team["Blue"],
@@ -67,9 +61,7 @@ class BattlefieldModel(mesa.Model):
 		self.telemetry.record_step(self)
 		self.running = True
 
-	def apply_obstacle_damage(
-		self, pos: tuple[int, int], damage: float, attacker_team: str | None = None
-	) -> None:
+	def apply_obstacle_damage(self, pos: tuple[int, int], damage: float) -> None:
 		x, y = pos
 		for dx in (-1, 0, 1):
 			for dy in (-1, 0, 1):
@@ -90,18 +82,13 @@ class BattlefieldModel(mesa.Model):
 					self.terrain[ny, nx] = 0
 					self.obstacle_hp[ny, nx] = 0
 					self.destroyed_obstacles += 1
-					if (
-						attacker_team is not None
-						and attacker_team in self.destroyed_obstacles_by_team
-					):
-						self.destroyed_obstacles_by_team[attacker_team] += 1
 
 	def _validate_spawn_points(
 		self, positions: list[tuple[int, int]], team: str
 	) -> None:
 		for position in positions:
 			x, y = position
-			if not (0 <= x < self.width and 0 <= y < self.height):
+			if not is_position_in_bounds(position, self.terrain):
 				raise ValueError(
 					f"{team} spawn point {position} is out of bounds for a "
 					f"{self.width}x{self.height} map"
@@ -121,6 +108,9 @@ class BattlefieldModel(mesa.Model):
 		self._validate_spawn_points(blue_positions, "Blue")
 		self._validate_spawn_points(red_positions, "Red")
 
+		if not self.spawn_agents:
+			return
+
 		for spawn_position in blue_positions:
 			blue_agent = self.blue_unit_class(
 				self,
@@ -137,23 +127,24 @@ class BattlefieldModel(mesa.Model):
 			)
 			self.grid.place_agent(red_agent, spawn_position)
 
+	def agents_of_team(self, team: str, alive_only: bool = True) -> list[CombatAgent]:
+		return [
+			agent
+			for agent in self.agents
+			if isinstance(agent, CombatAgent)
+			and agent.team == team
+			and (not alive_only or agent.hp > 0)
+		]
+
+	def alive_count(self, team: str) -> int:
+		return len(self.agents_of_team(team))
+
 	def broadcast_sighting(self, team: str, position: tuple[int, int]) -> None:
-		for agent in self.agents:
-			if isinstance(agent, CombatAgent) and agent.team == team and agent.hp > 0:
-				agent.last_known_enemy_pos = position
+		for agent in self.agents_of_team(team):
+			agent.last_known_enemy_pos = position
 
 	def is_battle_over(self) -> bool:
-		alive_blue = sum(
-			1
-			for a in self.agents
-			if getattr(a, "team", None) == "Blue" and getattr(a, "hp", 0) > 0
-		)
-		alive_red = sum(
-			1
-			for a in self.agents
-			if getattr(a, "team", None) == "Red" and getattr(a, "hp", 0) > 0
-		)
-		return alive_blue == 0 or alive_red == 0
+		return self.alive_count("Blue") == 0 or self.alive_count("Red") == 0
 
 	def record_attack(
 		self,

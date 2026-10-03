@@ -35,7 +35,7 @@ Modeled using finite-state machine utilizing states:
 
 ### Scenario runner
 - JSON-defined experiments with map, unit config, overrides, and repetitions
-- 10 pre-built scenarios across 8 maps testing: unit balance, cover, detection, chokepoints, numerical superiority, mobility vs durability, retreat thresholds
+- 10 pre-built scenarios across 5 maps testing: unit balance, cover, detection, chokepoints, numerical superiority, mobility vs durability, retreat thresholds
 - Automated aggregation (win rates, KDR, DPS, survival) and telemetry export
 
 ## Getting started

@@ -1,9 +1,35 @@
 import heapq
 import math
+from collections.abc import Callable, Iterator
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 type Position = tuple[int, int]
+
+
+def load_board(path: str | Path, base_dir: str | Path | None = None) -> np.ndarray:
+	if base_dir is not None:
+		path = Path(base_dir) / path
+	board_path = Path(path)
+	if not board_path.exists():
+		raise FileNotFoundError(f"Map file not found: {board_path}")
+	try:
+		return np.loadtxt(board_path, delimiter=",", dtype=int)
+	except Exception:
+		return np.loadtxt(board_path, dtype=int)
+
+
+def run_model(
+	model: Any, steps: int, on_step: Callable[[Any], None] | None = None
+) -> None:
+	for _ in range(steps):
+		if not model.running:
+			break
+		model.step()
+		if on_step is not None:
+			on_step(model)
 
 
 def is_position_in_bounds(pos: Position, terrain: np.ndarray) -> bool:
@@ -59,6 +85,21 @@ def get_walkable_neighbors(
 		neighbors.append(candidate)
 
 	return neighbors
+
+
+def iter_walkable_cells(
+	center: Position,
+	radius: int,
+	terrain: np.ndarray,
+) -> Iterator[Position]:
+	cx, cy = center
+	for dx in range(-radius, radius + 1):
+		for dy in range(-radius, radius + 1):
+			if dx == 0 and dy == 0:
+				continue
+			candidate = (cx + dx, cy + dy)
+			if is_walkable(candidate, terrain):
+				yield candidate
 
 
 def movement_step_cost(
@@ -444,29 +485,3 @@ def detection_score(
 	if observation_range <= 0:
 		return 0.0
 	return max(0.0, 1.0 - (distance / observation_range))
-
-
-def visible_cells(
-	observer_pos: tuple[int, int],
-	terrain: np.ndarray,
-	observation_range: float,
-	facing_direction: tuple[int, int],
-	view_angle_deg: float,
-) -> set[tuple[int, int]]:
-	visible: set[tuple[int, int]] = set()
-	for y in range(terrain.shape[0]):
-		for x in range(terrain.shape[1]):
-			pos = (x, y)
-			if (
-				detection_score(
-					observer_pos=observer_pos,
-					target_pos=pos,
-					terrain=terrain,
-					observation_range=observation_range,
-					facing_direction=facing_direction,
-					view_angle_deg=view_angle_deg,
-				)
-				> 0
-			):
-				visible.add(pos)
-	return visible

@@ -16,11 +16,17 @@ from simulation.utils import (
 	has_line_of_sight,
 	hit_probability,
 	is_in_vision_cone,
-	visible_cells,
+	iter_walkable_cells,
 )
 
 
 class CombatAgent(mesa.Agent):
+	retreat_weight_distance = 10.0
+	retreat_weight_los = 5.0
+	retreat_weight_cover = 8.0
+	retreat_weight_allies = 3.0
+	retreat_weight_cohesion = 5.0
+
 	def __init__(
 		self,
 		model: mesa.Model,
@@ -76,22 +82,17 @@ class CombatAgent(mesa.Agent):
 
 		if self.ai_state == "retreat":
 			self.retreat(visible_before_move)
-		elif self.ai_state == "engage":
-			target = self._pick_attack_target(visible_before_move)
-			if target is not None:
-				self.attack(target)
+		elif (
+			self.ai_state == "engage"
+			and self._pick_attack_target(visible_before_move) is not None
+		):
+			self.attack_closest_target(visible_before_move)
+		else:
+			if self.ai_state == "patrol":
+				self.patrol_step()
 			else:
 				self.move()
-				visible_after_move = self.get_visible_enemies()
-				self.attack_closest_target(visible_after_move)
-		elif self.ai_state == "patrol":
-			self.patrol_step()
-			visible_after_move = self.get_visible_enemies()
-			self.attack_closest_target(visible_after_move)
-		else:
-			self.move()
-			visible_after_move = self.get_visible_enemies()
-			self.attack_closest_target(visible_after_move)
+			self.attack_closest_target(self.get_visible_enemies())
 
 	def update_behavior_state(self, visible_enemies: list["CombatAgent"]) -> None:
 		has_visible_enemy = len(visible_enemies) > 0
@@ -124,9 +125,13 @@ class CombatAgent(mesa.Agent):
 
 		self.move(target_position=target)
 
-	def _get_nearby_allies(
-		self, pos: tuple[int, int], radius: float
+	def _allied_agents(
+		self,
+		pos: tuple[int, int] | None = None,
+		radius: float | None = None,
+		state: str | None = None,
 	) -> list["CombatAgent"]:
+		origin = self.pos if pos is None else pos
 		allies: list["CombatAgent"] = []
 		for agent in self.model.agents:
 			if (
@@ -134,23 +139,26 @@ class CombatAgent(mesa.Agent):
 				and agent.team == self.team
 				and agent.hp > 0
 				and agent.unique_id != self.unique_id
-				and euclidean_distance(pos, agent.pos) <= radius
+				and agent.pos is not None
+				and (state is None or agent.ai_state == state)
+				and (
+					radius is None
+					or (
+						origin is not None
+						and euclidean_distance(origin, agent.pos) <= radius
+					)
+				)
 			):
 				allies.append(agent)
 		return allies
 
+	def _get_nearby_allies(
+		self, pos: tuple[int, int], radius: float
+	) -> list["CombatAgent"]:
+		return self._allied_agents(pos=pos, radius=radius)
+
 	def _get_ally_positions(self) -> list[tuple[int, int]]:
-		positions: list[tuple[int, int]] = []
-		for agent in self.model.agents:
-			if (
-				isinstance(agent, CombatAgent)
-				and agent.team == self.team
-				and agent.hp > 0
-				and agent.unique_id != self.unique_id
-				and agent.pos is not None
-			):
-				positions.append(agent.pos)
-		return positions
+		return [agent.pos for agent in self._allied_agents()]
 
 	def _covering_fire(self, visible_enemies: list["CombatAgent"]) -> bool:
 		target = self._pick_attack_target(visible_enemies)
@@ -194,11 +202,11 @@ class CombatAgent(mesa.Agent):
 		normalized_dist = dist_from_enemies / max_map_dist
 
 		return (
-			normalized_dist * 10.0
-			+ los_blocked * 5.0
-			+ cover * 8.0
-			+ nearby_allies_at_cell * 3.0
-			+ group_cohesion * 5.0
+			normalized_dist * self.retreat_weight_distance
+			+ los_blocked * self.retreat_weight_los
+			+ cover * self.retreat_weight_cover
+			+ nearby_allies_at_cell * self.retreat_weight_allies
+			+ group_cohesion * self.retreat_weight_cohesion
 		)
 
 	def _reachable_cells(self, terrain: np.ndarray) -> set[tuple[int, int]]:
@@ -237,18 +245,9 @@ class CombatAgent(mesa.Agent):
 			self.attack_closest_target(visible_enemies)
 			return
 
-		retreat_group: list["CombatAgent"] = []
-		for agent in self.model.agents:
-			if (
-				isinstance(agent, CombatAgent)
-				and agent.team == self.team
-				and agent.hp > 0
-				and agent.unique_id != self.unique_id
-				and agent.ai_state == "retreat"
-				and agent.pos is not None
-				and euclidean_distance(self.pos, agent.pos) <= self.observation_range
-			):
-				retreat_group.append(agent)
+		retreat_group = self._allied_agents(
+			radius=self.observation_range, state="retreat"
+		)
 
 		group_centroid: tuple[float, float] | None = None
 		if retreat_group:
@@ -268,27 +267,21 @@ class CombatAgent(mesa.Agent):
 
 		search_radius = max(4, self.mobility + 2)
 		reachable = self._reachable_cells(terrain)
-		for dx in range(-search_radius, search_radius + 1):
-			for dy in range(-search_radius, search_radius + 1):
-				if dx == 0 and dy == 0:
-					continue
-				candidate = (self.pos[0] + dx, self.pos[1] + dy)
-				if not _is_position_valid(candidate, terrain):
-					continue
-				if candidate not in reachable:
-					continue
+		for candidate in iter_walkable_cells(self.pos, search_radius, terrain):
+			if candidate not in reachable:
+				continue
 
-				score = self._score_retreat_cell(
-					candidate,
-					enemy_positions,
-					ally_positions,
-					group_centroid,
-					max_map_dist,
-				)
+			score = self._score_retreat_cell(
+				candidate,
+				enemy_positions,
+				ally_positions,
+				group_centroid,
+				max_map_dist,
+			)
 
-				if score > best_score:
-					best_score = score
-					best_cell = candidate
+			if score > best_score:
+				best_score = score
+				best_cell = candidate
 
 		if best_cell is None:
 			self.move()
@@ -308,16 +301,7 @@ class CombatAgent(mesa.Agent):
 			self._covering_fire(self.get_visible_enemies())
 			return
 
-		step_index = min(self.mobility, len(path) - 1)
-		old_position = self.pos
-		new_position = path[step_index]
-		self.model.grid.move_agent(self, new_position)
-
-		if len(path) >= 2:
-			dx = path[1][0] - old_position[0]
-			dy = path[1][1] - old_position[1]
-			if (dx, dy) != (0, 0):
-				self.facing_direction = (dx, dy)
+		self._advance_along_path(path)
 
 		self._covering_fire(self.get_visible_enemies())
 
@@ -487,15 +471,6 @@ class CombatAgent(mesa.Agent):
 				self.model.broadcast_sighting(self.team, self.last_known_enemy_pos)
 		return visible_enemies
 
-	def get_visible_cells(self) -> set[tuple[int, int]]:
-		return visible_cells(
-			observer_pos=self.pos,
-			terrain=self.model.terrain,
-			observation_range=self.observation_range,
-			facing_direction=self.facing_direction,
-			view_angle_deg=self.view_angle_deg,
-		)
-
 	def _get_navigation_target(self) -> tuple[int, int] | None:
 		if self.patrol_route:
 			return self.patrol_route[self.patrol_index]
@@ -557,6 +532,19 @@ class CombatAgent(mesa.Agent):
 			if (dx, dy) != (0, 0):
 				self.facing_direction = (dx, dy)
 
+	def _advance_along_path(self, path: list[tuple[int, int]]) -> None:
+		step_index = min(self.mobility, len(path) - 1)
+		old_position = self.pos
+		new_position = path[step_index]
+		self.model.grid.move_agent(self, new_position)
+		self.current_path = path
+
+		direction_step = path[1]
+		dx = direction_step[0] - old_position[0]
+		dy = direction_step[1] - old_position[1]
+		if (dx, dy) != (0, 0):
+			self.facing_direction = (dx, dy)
+
 	def move(self, target_position: tuple[int, int] | None = None) -> None:
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
@@ -584,17 +572,7 @@ class CombatAgent(mesa.Agent):
 			self._move_randomly()
 			return
 
-		step_index = min(self.mobility, len(path) - 1)
-		old_position = self.pos
-		new_position = path[step_index]
-		self.model.grid.move_agent(self, new_position)
-		self.current_path = path
-
-		direction_step = path[1]
-		dx = direction_step[0] - old_position[0]
-		dy = direction_step[1] - old_position[1]
-		if (dx, dy) != (0, 0):
-			self.facing_direction = (dx, dy)
+		self._advance_along_path(path)
 
 
 class InfantrySquad(CombatAgent):
@@ -648,6 +626,12 @@ class ReconSquad(CombatAgent):
 	combat longer.
 	"""
 
+	retreat_weight_distance = 10.0
+	retreat_weight_los = 8.0
+	retreat_weight_cover = 12.0
+	retreat_weight_allies = 1.0
+	retreat_weight_cohesion = 3.0
+
 	def __init__(
 		self,
 		model: mesa.Model,
@@ -686,49 +670,6 @@ class ReconSquad(CombatAgent):
 			cover_multiplier=cover_multiplier,
 		)
 
-	def _score_retreat_cell(
-		self,
-		candidate: tuple[int, int],
-		enemy_positions: list[tuple[int, int]],
-		ally_positions: list[tuple[int, int]],
-		group_centroid: tuple[float, float] | None,
-		max_map_dist: float,
-	) -> float:
-		terrain = getattr(self.model, "terrain", None)
-		if terrain is None:
-			return float("-inf")
-
-		dist_from_enemies = min(
-			euclidean_distance(candidate, ep) for ep in enemy_positions
-		)
-
-		los_blocked = 0
-		for ep in enemy_positions:
-			if not has_line_of_sight(candidate, ep, terrain):
-				los_blocked += 1
-
-		cover = cover_ratio(candidate, terrain)
-
-		nearby_allies_at_cell = 0
-		for ap in ally_positions:
-			if euclidean_distance(candidate, ap) <= self.attack_range:
-				nearby_allies_at_cell += 1
-
-		group_cohesion = 0.0
-		if group_centroid is not None:
-			dg = euclidean_distance(candidate, group_centroid)
-			group_cohesion = max(0.0, 1.0 - dg / self.observation_range)
-
-		normalized_dist = dist_from_enemies / max_map_dist
-
-		return (
-			normalized_dist * 10.0
-			+ los_blocked * 8.0
-			+ cover * 12.0
-			+ nearby_allies_at_cell * 1.0
-			+ group_cohesion * 3.0
-		)
-
 	def _find_cover_waypoint(
 		self, target_pos: tuple[int, int]
 	) -> tuple[int, int] | None:
@@ -741,26 +682,19 @@ class ReconSquad(CombatAgent):
 		best_score = float("-inf")
 		current_dist = euclidean_distance(self.pos, target_pos)
 
-		for dx in range(-search_radius, search_radius + 1):
-			for dy in range(-search_radius, search_radius + 1):
-				candidate = (self.pos[0] + dx, self.pos[1] + dy)
-				if not _is_position_valid(candidate, terrain):
-					continue
-				if candidate == self.pos:
-					continue
+		for candidate in iter_walkable_cells(self.pos, search_radius, terrain):
+			cover = cover_ratio(candidate, terrain)
+			cand_dist = euclidean_distance(candidate, target_pos)
 
-				cover = cover_ratio(candidate, terrain)
-				cand_dist = euclidean_distance(candidate, target_pos)
+			if cand_dist >= current_dist and cover <= 0:
+				continue
 
-				if cand_dist >= current_dist and cover <= 0:
-					continue
+			progress = max(0, current_dist - cand_dist) / max(1, current_dist)
+			score = cover * 12.0 + progress * 5.0
 
-				progress = max(0, current_dist - cand_dist) / max(1, current_dist)
-				score = cover * 12.0 + progress * 5.0
-
-				if score > best_score:
-					best_score = score
-					best_pos = candidate
+			if score > best_score:
+				best_score = score
+				best_pos = candidate
 
 		return best_pos
 
@@ -866,12 +800,3 @@ class MainBattleTank(CombatAgent):
 			retreat_health_ratio=retreat_health_ratio,
 			cover_multiplier=cover_multiplier,
 		)
-
-
-def _is_position_valid(pos: tuple[int, int], terrain: np.ndarray) -> bool:
-	x, y = pos
-	if x < 0 or y < 0:
-		return False
-	if y >= terrain.shape[0] or x >= terrain.shape[1]:
-		return False
-	return int(terrain[y, x]) != 1

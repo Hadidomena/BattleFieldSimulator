@@ -371,6 +371,30 @@ def test_retreat_does_not_abandon_outnumbered_allies() -> None:
 	)
 
 
+def test_allied_agents_filters_team_alive_and_radius() -> None:
+	board = np.zeros((10, 10), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+
+	ally = CombatAgent(model, team="Blue", hp=100)
+	dead_ally = CombatAgent(model, team="Blue", hp=0)
+	enemy = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (5, 5))
+	model.grid.place_agent(ally, (5, 7))
+	model.grid.place_agent(dead_ally, (5, 4))
+	model.grid.move_agent(enemy, (6, 5))
+
+	assert blue._allied_agents() == [ally]
+	assert blue._allied_agents(radius=1) == []
+	assert blue._allied_agents(radius=2) == [ally]
+	assert blue._get_ally_positions() == [(5, 7)]
+
+	ally.ai_state = "retreat"
+	assert blue._allied_agents(state="retreat") == [ally]
+	assert blue._allied_agents(state="engage") == []
+
+
 def test_retreat_ignores_unreachable_cells() -> None:
 	board = np.zeros((10, 10), dtype=int)
 	for y in range(3):
