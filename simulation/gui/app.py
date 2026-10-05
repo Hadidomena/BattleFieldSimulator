@@ -5,15 +5,19 @@ from collections.abc import Callable
 import solara
 from matplotlib.figure import Figure
 from mesa.visualization.components import AgentPortrayalStyle
-from mesa.visualization.solara_viz import (
-	ModelController,
-	ModelCreator,
-	ShowSteps,
-)
+from mesa.visualization.solara_viz import ModelController, ShowSteps
 from mesa.visualization.utils import update_counter
 
-from simulation.gui.model_factory import SimulationModel
+from simulation.gui.model_factory import (
+	CUSTOM_SCENARIO,
+	DEFAULT_MAP,
+	DEFAULT_UNIT_CLASS,
+	SimulationModel,
+	default_model_parameters,
+	unit_class_names,
+)
 from simulation.gui.portrayal import agent_portrayal, draw_terrain
+from simulation.scenarios import list_map_names, list_scenario_names
 
 AGENT_STYLE_FIELDS = {
 	"size": 50,
@@ -102,9 +106,76 @@ def _plot_component(measures: str | list[str]) -> Callable:
 
 
 @solara.component
+def _ConfigEditor(model, model_parameters, error_message):
+	values = model_parameters.value
+
+	def update(name, value):
+		new_parameters = {**model_parameters.value, name: value}
+		model_parameters.set(new_parameters)
+		try:
+			model.set(type(model.value)(**new_parameters))
+			error_message.set(None)
+		except (ValueError, FileNotFoundError, KeyError) as error:
+			error_message.set(str(error))
+
+	solara.Select(
+		label="Scenario",
+		value=values.get("scenario_name", CUSTOM_SCENARIO),
+		values=[CUSTOM_SCENARIO, *list_scenario_names()],
+		on_value=lambda value: update("scenario_name", value),
+	)
+	solara.Select(
+		label="Map (Custom scenario)",
+		value=values.get("map_name", DEFAULT_MAP),
+		values=list_map_names(),
+		on_value=lambda value: update("map_name", value),
+	)
+	solara.Select(
+		label="Blue unit class",
+		value=values.get("blue_units", DEFAULT_UNIT_CLASS),
+		values=unit_class_names(),
+		on_value=lambda value: update("blue_units", value),
+	)
+	solara.Select(
+		label="Red unit class",
+		value=values.get("red_units", DEFAULT_UNIT_CLASS),
+		values=unit_class_names(),
+		on_value=lambda value: update("red_units", value),
+	)
+	solara.SliderInt(
+		label="Blue unit count",
+		value=values.get("blue_count", 3),
+		min=1,
+		max=10,
+		on_value=lambda value: update("blue_count", value),
+	)
+	solara.SliderInt(
+		label="Red unit count",
+		value=values.get("red_count", 3),
+		min=1,
+		max=10,
+		on_value=lambda value: update("red_count", value),
+	)
+	solara.InputText(
+		label="Seed (blank = random)",
+		value=str(values.get("seed", "")),
+		on_value=lambda value: update("seed", value),
+	)
+	solara.SliderInt(
+		label="Max steps (0 = no limit)",
+		value=values.get("max_steps", 0),
+		min=0,
+		max=500,
+		step=10,
+		on_value=lambda value: update("max_steps", value),
+	)
+
+
+@solara.component
 def Page():
-	model = solara.use_memo(lambda: SimulationModel(), [])
-	model = solara.use_reactive(model)
+	model = solara.use_reactive(solara.use_memo(lambda: SimulationModel(), []))
+	model_parameters = solara.use_reactive(solara.use_memo(default_model_parameters, []))
+	error_message = solara.use_reactive(None)
 
 	with solara.AppBar():
 		solara.AppBarTitle("Battlefield Simulator")
@@ -115,12 +186,15 @@ def Page():
 			with solara.Card("Controls"):
 				ModelController(
 					model,
+					model_parameters=model_parameters,
 					play_interval=solara.use_reactive(250),
 					render_interval=solara.use_reactive(1),
 					use_threads=solara.use_reactive(False),
 				)
 			with solara.Card("Model Parameters"):
-				ModelCreator(model, {})
+				_ConfigEditor(model, model_parameters, error_message)
+				if error_message.value:
+					solara.Error(error_message.value)
 			with solara.Card("Information"):
 				ShowSteps(model.value)
 

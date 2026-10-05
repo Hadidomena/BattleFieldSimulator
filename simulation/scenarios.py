@@ -73,6 +73,24 @@ def list_maps(map_dir: Path = MAP_DIR) -> list[Path]:
 	return maps
 
 
+def list_map_names() -> list[str]:
+	return [path.name for path in list_maps()]
+
+
+def list_scenario_names() -> list[str]:
+	return [scenario["_filename"] for scenario in load_scenarios()]
+
+
+def load_scenario(scenario_name: str) -> dict:
+	for scenario in load_scenarios():
+		if (
+			scenario["_filename"] == scenario_name
+			or scenario.get("name") == scenario_name
+		):
+			return scenario
+	raise ValueError(f"Unknown scenario: {scenario_name}")
+
+
 def build_model_from_scenario(
 	scenario: dict, seed: int | None = None
 ) -> BattlefieldModel:

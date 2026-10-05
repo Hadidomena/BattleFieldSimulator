@@ -56,11 +56,18 @@ python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3
 ### Launch the interactive GUI
 
 An interactive browser-based visualization of a live simulation is built with
-Mesa's Solara integration.
+Mesa's Solara integration. The first page load can take a while while the
+Solara server compiles the app.
 
 ```bash
 python -m simulation.gui            # launches the Solara server
 ```
+
+The GUI shows the battlefield map, live charts (population, damage, destroyed
+obstacles), and playback controls (play/pause, step, reset). The **Model
+Parameters** panel lets you configure the run: choose a preset scenario, or
+pick a map plus per-team unit class and count, set a seed, and cap the number
+of steps. Changing a setting rebuilds the simulation immediately.
 
 ### Run experimental scenarios
 
