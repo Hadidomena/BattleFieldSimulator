@@ -53,6 +53,15 @@ python main.py --seed 42                                 # reproducible run
 python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3
 ```
 
+### Launch the interactive GUI
+
+An interactive browser-based visualization of a live simulation is built with
+Mesa's Solara integration.
+
+```bash
+python -m simulation.gui            # launches the Solara server
+```
+
 ### Run experimental scenarios
 
 ```bash

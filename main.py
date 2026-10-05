@@ -4,35 +4,10 @@ import sys
 import numpy as np
 
 from simulation.model import BattlefieldModel
-from simulation.utils import is_walkable, load_board, run_model
+from simulation.scenarios import default_spawn_points
+from simulation.utils import load_board, run_model
 
 DEFAULT_STEPS = 10
-
-
-def _default_spawn_points(
-	board: np.ndarray, team: str, count: int
-) -> list[tuple[int, int]]:
-	width = board.shape[1]
-	height = board.shape[0]
-	positions: list[tuple[int, int]] = []
-	if count <= 0:
-		return positions
-
-	if team == "Blue":
-		candidate_rows = [1, 2, 3]
-		candidate_columns = list(range(1, min(width - 1, count + 2)))
-	else:
-		candidate_rows = [height - 2, height - 3, height - 4]
-		candidate_columns = list(range(max(1, width - count - 2), width - 1))
-
-	for row in candidate_rows:
-		for column in candidate_columns:
-			if len(positions) >= count:
-				return positions
-			if is_walkable((column, row), board):
-				positions.append((column, row))
-
-	return positions
 
 
 def _resolve_step_count(steps: int) -> int:
@@ -120,8 +95,8 @@ def main() -> None:
 	print(board)
 
 	print("\n--- Initializing Environment Model ---")
-	blue_spawn_points = _default_spawn_points(board, "Blue", args.blue_units)
-	red_spawn_points = _default_spawn_points(board, "Red", args.red_units)
+	blue_spawn_points = default_spawn_points(board, "Blue", args.blue_units)
+	red_spawn_points = default_spawn_points(board, "Red", args.red_units)
 	model = BattlefieldModel(
 		board,
 		blue_spawn_points=blue_spawn_points,

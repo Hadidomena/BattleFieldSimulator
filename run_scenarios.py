@@ -16,99 +16,13 @@ from contextlib import nullcontext, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 
-from simulation.agent import (
-	CombatAgent,
-	InfantrySquad,
-	MainBattleTank,
-	MechanizedInfantry,
-	ReconSquad,
-)
 from simulation.model import BattlefieldModel
-from simulation.utils import load_board, run_model
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-SCENARIO_DIR = PROJECT_ROOT / "data" / "scenarios"
-
-UNIT_CLASSES: dict[str, type[CombatAgent]] = {
-	"CombatAgent": CombatAgent,
-	"InfantrySquad": InfantrySquad,
-	"ReconSquad": ReconSquad,
-	"MechanizedInfantry": MechanizedInfantry,
-	"MainBattleTank": MainBattleTank,
-}
-
-
-def load_scenarios(scenario_dir: Path, filters: list[str] | None = None) -> list[dict]:
-	scenarios: list[dict] = []
-	for filepath in sorted(scenario_dir.glob("scenario_*.json")):
-		if filters:
-			if not any(f in filepath.stem for f in filters):
-				continue
-		with open(filepath) as f:
-			scenario = json.load(f)
-		scenario["_filename"] = filepath.stem
-		scenarios.append(scenario)
-	return scenarios
-
-
-def build_model_from_scenario(
-	scenario: dict, seed: int | None = None
-) -> BattlefieldModel:
-	board = load_board(scenario["map"], base_dir=PROJECT_ROOT)
-	blue_config = scenario["blue_team"]
-	red_config = scenario["red_team"]
-
-	blue_spawn = [tuple(sp) for sp in blue_config.get("spawn_points", [])]
-	red_spawn = [tuple(sp) for sp in red_config.get("spawn_points", [])]
-
-	model = BattlefieldModel(
-		board,
-		blue_spawn_points=blue_spawn,
-		red_spawn_points=red_spawn,
-		seed=seed,
-		spawn_agents=False,
-	)
-
-	_reconfigure_agents(model, "Blue", blue_config)
-	_reconfigure_agents(model, "Red", red_config)
-
-	model.telemetry.reset()
-	model.telemetry.record_step(model)
-	return model
-
-
-def _reconfigure_agents(model: BattlefieldModel, team: str, team_config: dict) -> None:
-	to_remove = [a for a in model.agents if getattr(a, "team", None) == team]
-
-	for agent in to_remove:
-		if agent.pos is not None:
-			model.grid.remove_agent(agent)
-		agent.remove()
-
-	unit_defs = team_config.get("units", [])
-	spawn_points = team_config.get("spawn_points", [])
-
-	spawn_index = 0
-	for unit_def in unit_defs:
-		class_name = unit_def["class"]
-		count = unit_def.get("count", 1)
-		overrides = unit_def.get("overrides", {})
-
-		agent_cls = UNIT_CLASSES[class_name]
-
-		for _ in range(count):
-			spawn_pos = (
-				tuple(spawn_points[spawn_index])
-				if spawn_index < len(spawn_points)
-				else None
-			)
-			spawn_index += 1
-
-			if spawn_pos is None:
-				continue
-
-			agent = agent_cls(model, team=team, **overrides)
-			model.grid.place_agent(agent, spawn_pos)
+from simulation.scenarios import (
+	SCENARIO_DIR,
+	build_model_from_scenario,
+	load_scenarios,
+)
+from simulation.utils import run_model
 
 
 def _print_step_debug(model: BattlefieldModel) -> None:
