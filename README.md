@@ -13,7 +13,7 @@ A meso-scale tactical combat simulator built with [Mesa](https://mesa.readthedoc
 ### Tactical AI
 Modeled using finite-state machine utilizing states:
 - **advance** — move toward enemies using A*/Dijkstra pathfinding
-- **engage** — attack visible enemies in range; move + attack otherwise
+- **engage** — attack visible enemies in range while repositioning to nearby cover that keeps the target in range and in line of sight; re-seeks cover when the current cover is destroyed
 - **retreat** — scored-cell selection (distance, LoS breaks, cover, group cohesion), covering fire, group coordination, non-abandonment check
 - **patrol** — follow a predefined route, engage enemies on sight
 

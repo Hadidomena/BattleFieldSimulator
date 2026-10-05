@@ -5,6 +5,11 @@ import numpy as np
 
 from simulation.agent import CombatAgent, MechanizedInfantry, ReconSquad
 from simulation.model import BattlefieldModel
+from simulation.utils import (
+	cover_ratio,
+	euclidean_distance,
+	has_line_of_sight,
+)
 
 
 def _agent_by_team(model: BattlefieldModel, team: str) -> CombatAgent:
@@ -636,3 +641,63 @@ def test_reconsquad_group_coordination() -> None:
 	assert blue.pos[1] > blue_before_pos[1], (
 		f"Group cohesion should pull toward centroid y=4: y {blue_before_pos[1]} -> {blue.pos[1]}"  # noqa
 	)
+
+
+def test_engage_moves_to_cover_instead_of_standing_in_the_open() -> None:
+	board = np.zeros((12, 12), dtype=int)
+	for x in range(3, 8):
+		board[4, x] = 1
+
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (5, 7))
+	model.grid.move_agent(red, (8, 7))
+
+	blue.view_angle_deg = 360.0
+	blue.observation_range = 10
+	blue.detection_threshold = 0.0
+	blue.attack_range = 5.0
+	blue.accuracy = 1.0
+	blue.firepower = 20
+	blue.mobility = 2
+	red.hp = 100
+
+	assert cover_ratio(blue.pos, board) == 0.0
+	red_hp_before = red.hp
+
+	for _ in range(4):
+		blue.step()
+		if cover_ratio(blue.pos, board) > 0.0:
+			break
+
+	assert blue.ai_state == "engage"
+	assert cover_ratio(blue.pos, board) > 0.0, (
+		f"Engaging unit should reposition to cover, stayed at {blue.pos}"
+	)
+	assert red.hp < red_hp_before, "Unit should keep firing while repositioning"
+
+
+def test_engage_cover_cell_keeps_target_in_range_and_los() -> None:
+	board = np.zeros((12, 12), dtype=int)
+	board[5, 5] = 1
+
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (3, 5))
+	model.grid.move_agent(red, (7, 5))
+
+	blue.view_angle_deg = 360.0
+	blue.observation_range = 10
+	blue.detection_threshold = 0.0
+	blue.attack_range = 5.0
+	blue.mobility = 2
+
+	cell = blue._best_cover_cell(red)
+
+	assert cell is not None
+	assert euclidean_distance(cell, red.pos) <= blue.attack_range
+	assert has_line_of_sight(cell, red.pos, board)
