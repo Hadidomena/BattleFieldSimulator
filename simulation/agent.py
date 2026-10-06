@@ -273,6 +273,8 @@ class CombatAgent(mesa.Agent):
 		for candidate in iter_walkable_cells(self.pos, search_radius, terrain):
 			if candidate not in reachable:
 				continue
+			if not self._is_cell_free(candidate):
+				continue
 
 			score = self._score_retreat_cell(
 				candidate,
@@ -367,6 +369,8 @@ class CombatAgent(mesa.Agent):
 		search_radius = max(2, self.mobility + 1)
 
 		for candidate in iter_walkable_cells(self.pos, search_radius, terrain):
+			if not self._is_cell_free(candidate):
+				continue
 			if euclidean_distance(candidate, target.pos) > self.attack_range:
 				continue
 			if not has_line_of_sight(candidate, target.pos, terrain):
@@ -575,9 +579,13 @@ class CombatAgent(mesa.Agent):
 
 		terrain = getattr(self.model, "terrain", None)
 		if isinstance(terrain, np.ndarray):
-			valid_steps = [pos for pos in possible_steps if terrain[pos[1], pos[0]] != 1]
+			valid_steps = [
+				pos
+				for pos in possible_steps
+				if terrain[pos[1], pos[0]] != 1 and self._is_cell_free(pos)
+			]
 		else:
-			valid_steps = possible_steps
+			valid_steps = [pos for pos in possible_steps if self._is_cell_free(pos)]
 
 		if valid_steps:
 			old_position = self.pos
@@ -588,10 +596,38 @@ class CombatAgent(mesa.Agent):
 			if (dx, dy) != (0, 0):
 				self.facing_direction = (dx, dy)
 
+	def _is_cell_free(self, position: tuple[int, int]) -> bool:
+		"""Return True if no other living agent occupies ``position``."""
+		grid = getattr(self.model, "grid", None)
+		if grid is None or position is None:
+			return True
+		try:
+			contents = grid.get_cell_list_contents([position])
+		except (TypeError, AttributeError):
+			return True
+		for agent in contents:
+			if agent is not self and getattr(agent, "hp", 1) > 0:
+				return False
+		return True
+
 	def _advance_along_path(self, path: list[tuple[int, int]]) -> None:
-		step_index = min(self.mobility, len(path) - 1)
 		old_position = self.pos
-		new_position = path[step_index]
+		if old_position is None:
+			return
+
+		max_index = min(self.mobility, len(path) - 1)
+		new_position = old_position
+		step_index = 1
+		while step_index <= max_index:
+			candidate = path[step_index]
+			if not self._is_cell_free(candidate):
+				break
+			new_position = candidate
+			step_index += 1
+
+		if new_position == old_position:
+			return
+
 		self.model.grid.move_agent(self, new_position)
 		self.current_path = path
 

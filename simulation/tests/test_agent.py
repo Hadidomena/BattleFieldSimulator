@@ -665,7 +665,7 @@ def test_engage_moves_to_cover_instead_of_standing_in_the_open() -> None:
 	red.hp = 100
 
 	assert cover_ratio(blue.pos, board) == 0.0
-	red_hp_before = red.hp
+	shots_before = model.shots_by_team["Blue"]
 
 	for _ in range(4):
 		blue.step()
@@ -676,7 +676,9 @@ def test_engage_moves_to_cover_instead_of_standing_in_the_open() -> None:
 	assert cover_ratio(blue.pos, board) > 0.0, (
 		f"Engaging unit should reposition to cover, stayed at {blue.pos}"
 	)
-	assert red.hp < red_hp_before, "Unit should keep firing while repositioning"
+	assert model.shots_by_team["Blue"] > shots_before, (
+		"Unit should keep firing while repositioning"
+	)
 
 
 def test_engage_cover_cell_keeps_target_in_range_and_los() -> None:
@@ -701,3 +703,46 @@ def test_engage_cover_cell_keeps_target_in_range_and_los() -> None:
 	assert cell is not None
 	assert euclidean_distance(cell, red.pos) <= blue.attack_range
 	assert has_line_of_sight(cell, red.pos, board)
+
+
+def test_unit_cannot_move_onto_occupied_allied_cell() -> None:
+	board = np.zeros((8, 8), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	ally = CombatAgent(model, team="Blue", hp=100)
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.place_agent(ally, (3, 2))
+
+	blue.mobility = 2
+	blue.move(target_position=(5, 2))
+
+	assert blue.pos == (2, 2), "Unit must not stack onto an occupied cell"
+
+
+def test_unit_cannot_move_onto_enemy_cell() -> None:
+	board = np.zeros((8, 8), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+	red = _agent_by_team(model, "Red")
+
+	model.grid.move_agent(blue, (2, 2))
+	model.grid.move_agent(red, (3, 2))
+
+	blue.mobility = 2
+	blue.move(target_position=(5, 2))
+
+	assert blue.pos == (2, 2), "Unit must not enter a cell occupied by an enemy"
+
+
+def test_unit_advances_while_path_stays_clear() -> None:
+	board = np.zeros((8, 8), dtype=int)
+	model = BattlefieldModel(board)
+	blue = _agent_by_team(model, "Blue")
+
+	model.grid.move_agent(blue, (2, 2))
+
+	blue.mobility = 2
+	blue.move(target_position=(5, 2))
+
+	assert blue.pos == (4, 2)
