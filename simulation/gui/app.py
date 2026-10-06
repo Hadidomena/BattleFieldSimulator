@@ -16,12 +16,13 @@ from simulation.gui.model_factory import (
 	default_model_parameters,
 	unit_class_names,
 )
-from simulation.gui.portrayal import (
+from simulation.gui.portrayal import agent_portrayal, draw_terrain
+from simulation.gui.theme import (
 	CLASS_MARKERS,
 	DEFAULT_MARKER,
+	STATE_COLORS,
+	STATE_ORDER,
 	TEAM_COLORS,
-	agent_portrayal,
-	draw_terrain,
 )
 from simulation.scenarios import list_map_names, list_scenario_names
 
@@ -44,25 +45,25 @@ def _figure_to_png(fig: Figure) -> bytes:
 
 
 @solara.component
-def _SpaceView(model):
+def _SpaceView(model, show_state: bool):
 	update_counter.get()
 
 	fig = Figure(constrained_layout=True, figsize=(6, 6))
 	ax = fig.add_subplot()
 
 	draw_terrain(ax, model, include_grid_lines=True)
-	_draw_agents(ax, model)
+	_draw_agents(ax, model, show_state=show_state)
 
 	solara.Image(_figure_to_png(fig), width="100%")
 
 
-def _draw_agents(ax, model) -> None:
+def _draw_agents(ax, model, show_state: bool = False) -> None:
 	space = getattr(model, "grid", None) or getattr(model, "space", None)
 	agents = list(space.agents)
 
 	by_zorder: dict[int, list] = {}
 	for agent in agents:
-		style = agent_portrayal(agent)
+		style = agent_portrayal(agent, show_state=show_state)
 		if style.x is None or style.y is None:
 			style.x, style.y = agent.pos
 		by_zorder.setdefault(style.zorder or 1, []).append(style)
@@ -75,6 +76,8 @@ def _draw_agents(ax, model) -> None:
 		sizes = [s.size or AGENT_STYLE_FIELDS["size"] for s in styles]
 		alphas = [s.alpha for s in styles]
 		markers = [s.marker or AGENT_STYLE_FIELDS["marker"] for s in styles]
+		edges = [s.edgecolors or "black" for s in styles]
+		widths = [s.linewidths if s.linewidths is not None else 0.8 for s in styles]
 
 		for marker in set(markers):
 			mask = [m == marker for m in markers]
@@ -85,10 +88,43 @@ def _draw_agents(ax, model) -> None:
 				c=[c for c, keep in zip(colors, mask, strict=True) if keep],
 				alpha=[a for a, keep in zip(alphas, mask, strict=True) if keep],
 				marker=marker,
-				edgecolors="black",
-				linewidths=0.8,
+				edgecolors=[e for e, keep in zip(edges, mask, strict=True) if keep],
+				linewidths=[w for w, keep in zip(widths, mask, strict=True) if keep],
 				zorder=zorder,
 			)
+
+
+@solara.component
+def _StateChart(model):
+	update_counter.get()
+
+	counts = {team: dict.fromkeys(STATE_ORDER, 0) for team in ("Blue", "Red")}
+	for agent in model.agents:
+		if getattr(agent, "hp", 0) <= 0:
+			continue
+		team = getattr(agent, "team", None)
+		state = getattr(agent, "ai_state", None)
+		if team in counts and state in counts[team]:
+			counts[team][state] += 1
+
+	fig = Figure(constrained_layout=True, figsize=(6, 3))
+	ax = fig.subplots()
+	positions = list(range(len(STATE_ORDER)))
+	bar_width = 0.38
+	for offset, team in ((-bar_width / 2, "Blue"), (bar_width / 2, "Red")):
+		values = [counts[team][state] for state in STATE_ORDER]
+		ax.bar(
+			[p + offset for p in positions],
+			values,
+			width=bar_width,
+			label=team,
+			color=TEAM_COLORS[team],
+		)
+	ax.set_xticks(positions)
+	ax.set_xticklabels(STATE_ORDER)
+	ax.set_ylabel("Units")
+	ax.legend(loc="best")
+	return solara.Image(_figure_to_png(fig), width="100%")
 
 
 def _plot_component(measures: str | list[str]) -> Callable:
@@ -181,40 +217,54 @@ def _ConfigEditor(model, model_parameters, error_message):
 def _LegendView():
 	classes = unit_class_names()
 
-	fig = Figure(constrained_layout=True, figsize=(4, 3))
+	fig = Figure(constrained_layout=True, figsize=(4.5, 3.4))
 	ax = fig.add_subplot()
 	ax.set_xlim(0, 1)
 	ax.set_ylim(0, 1)
 	ax.set_axis_off()
 
-	ax.text(0.06, 0.97, "Unit", fontsize=10, fontweight="bold", va="top")
+	ax.text(0.02, 0.98, "Unit", fontsize=9, fontweight="bold", va="top")
 	for index, name in enumerate(classes):
-		y = 0.87 - index * (0.8 / len(classes))
+		y = 0.9 - index * 0.1
 		marker = CLASS_MARKERS.get(name, DEFAULT_MARKER)
 		ax.scatter(
-			[0.1],
+			[0.06],
 			[y],
 			marker=marker,
-			s=140,
+			s=110,
 			c="#555555",
 			edgecolors="black",
 			linewidths=0.8,
 		)
-		ax.text(0.22, y, name, va="center", ha="left", fontsize=9)
+		ax.text(0.15, y, name, va="center", ha="left", fontsize=7.5)
 
-	ax.text(0.62, 0.97, "Team", fontsize=10, fontweight="bold", va="top")
+	ax.text(0.52, 0.98, "Team", fontsize=9, fontweight="bold", va="top")
 	for index, (team, color) in enumerate(TEAM_COLORS.items()):
-		y = 0.87 - index * 0.16
+		y = 0.9 - index * 0.1
 		ax.scatter(
-			[0.66],
+			[0.56],
 			[y],
 			marker="o",
-			s=140,
+			s=110,
 			c=color,
 			edgecolors="black",
 			linewidths=0.8,
 		)
-		ax.text(0.78, y, team, va="center", ha="left", fontsize=9)
+		ax.text(0.65, y, team, va="center", ha="left", fontsize=7.5)
+
+	ax.text(0.52, 0.62, "AI state", fontsize=9, fontweight="bold", va="top")
+	for index, state in enumerate(STATE_ORDER):
+		y = 0.54 - index * 0.1
+		ax.scatter(
+			[0.56],
+			[y],
+			marker="o",
+			s=110,
+			c="white",
+			edgecolors=STATE_COLORS[state],
+			linewidths=2.0,
+		)
+		ax.text(0.65, y, state, va="center", ha="left", fontsize=7.5)
 
 	solara.Image(_figure_to_png(fig), width="100%")
 
@@ -224,6 +274,7 @@ def Page():
 	model = solara.use_reactive(solara.use_memo(lambda: SimulationModel(), []))
 	model_parameters = solara.use_reactive(solara.use_memo(default_model_parameters, []))
 	error_message = solara.use_reactive(None)
+	show_states = solara.use_reactive(True)
 
 	with solara.AppBar():
 		solara.AppBarTitle("Battlefield Simulator")
@@ -239,6 +290,11 @@ def Page():
 					render_interval=solara.use_reactive(1),
 					use_threads=solara.use_reactive(False),
 				)
+				solara.Checkbox(
+					label="Show AI state outline",
+					value=show_states,
+					on_value=show_states.set,
+				)
 			with solara.Card("Model Parameters"):
 				_ConfigEditor(model, model_parameters, error_message)
 				if error_message.value:
@@ -251,7 +307,7 @@ def Page():
 		with solara.Column(style={"min-width": "0"}):
 			with solara.Columns([3, 2]):
 				with solara.Card("Battlefield"):
-					_SpaceView(model.value)
+					_SpaceView(model.value, show_states.value)
 				with solara.Column():
 					with solara.Card("Population"):
 						_plot_component(["Alive_Blue", "Alive_Red"])(model.value)
@@ -259,3 +315,5 @@ def Page():
 						_plot_component(["Damage_Blue", "Damage_Red"])(model.value)
 					with solara.Card("Destroyed Obstacles"):
 						_plot_component(["Destroyed_Obstacles"])(model.value)
+					with solara.Card("AI States"):
+						_StateChart(model.value)

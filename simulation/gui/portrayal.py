@@ -4,23 +4,14 @@ from matplotlib import colors as mcolors
 from matplotlib.patches import Rectangle
 from mesa.visualization.components import AgentPortrayalStyle
 
-TEAM_COLORS = {
-	"Blue": "#1f6feb",
-	"Red": "#d1242f",
-}
-UNKNOWN_TEAM_COLOR = "#8250df"
-
-CLASS_MARKERS = {
-	"InfantrySquad": "o",
-	"ReconSquad": "^",
-	"MechanizedInfantry": "s",
-	"MainBattleTank": "D",
-}
-DEFAULT_MARKER = "o"
-
-OBSTACLE_INTACT_COLOR = "#3d4451"
-OBSTACLE_DAMAGED_COLOR = "#9aa3b2"
-ROUGH_TERRAIN_COLOR = "#e6d8b5"
+from simulation.gui.theme import (
+	OBSTACLE_DAMAGED_COLOR,
+	OBSTACLE_INTACT_COLOR,
+	ROUGH_TERRAIN_COLOR,
+	class_marker,
+	state_edge_color,
+	team_color,
+)
 
 
 def _mix(color_a: str, color_b: str, ratio: float) -> tuple[float, float, float]:
@@ -30,22 +21,23 @@ def _mix(color_a: str, color_b: str, ratio: float) -> tuple[float, float, float]
 	return tuple(a + (b - a) * ratio for a, b in zip(rgba, rgb_b, strict=True))
 
 
-def agent_portrayal(agent) -> AgentPortrayalStyle:
-	team = getattr(agent, "team", None)
-	color = TEAM_COLORS.get(team, UNKNOWN_TEAM_COLOR)
-	marker = CLASS_MARKERS.get(type(agent).__name__, DEFAULT_MARKER)
+def agent_portrayal(agent, show_state: bool = False) -> AgentPortrayalStyle:
+	color = team_color(getattr(agent, "team", None))
+	marker = class_marker(type(agent).__name__)
 
 	hp = getattr(agent, "hp", 0)
 	max_hp = max(1, getattr(agent, "max_hp", 1))
 	hp_ratio = max(0.0, min(1.0, hp / max_hp))
+
+	edge_color = state_edge_color(getattr(agent, "ai_state", None), show_state)
 
 	return AgentPortrayalStyle(
 		color=color,
 		marker=marker,
 		size=60 + 140 * hp_ratio,
 		alpha=0.45 + 0.55 * hp_ratio,
-		edgecolors="black",
-		linewidths=0.8,
+		edgecolors=edge_color,
+		linewidths=1.8 if show_state else 0.8,
 		zorder=2,
 	)
 
