@@ -64,10 +64,10 @@ python -m simulation.gui            # launches the Solara server
 ```
 
 The GUI shows the battlefield map, live charts (population, damage, destroyed
-obstacles), and playback controls (play/pause, step, reset). The **Model
-Parameters** panel lets you configure the run: choose a preset scenario, or
-pick a map plus per-team unit class and count, set a seed, and cap the number
-of steps. Changing a setting rebuilds the simulation immediately.
+obstacles), a unit/team legend, and playback controls (play/pause, step, reset).
+The **Model Parameters** panel lets you configure the run: choose a preset
+scenario, or pick a map plus per-team unit class and count, set a seed, and cap
+the number of steps. Changing a setting rebuilds the simulation immediately.
 
 ### Run experimental scenarios
 

@@ -16,7 +16,13 @@ from simulation.gui.model_factory import (
 	default_model_parameters,
 	unit_class_names,
 )
-from simulation.gui.portrayal import agent_portrayal, draw_terrain
+from simulation.gui.portrayal import (
+	CLASS_MARKERS,
+	DEFAULT_MARKER,
+	TEAM_COLORS,
+	agent_portrayal,
+	draw_terrain,
+)
 from simulation.scenarios import list_map_names, list_scenario_names
 
 AGENT_STYLE_FIELDS = {
@@ -172,6 +178,48 @@ def _ConfigEditor(model, model_parameters, error_message):
 
 
 @solara.component
+def _LegendView():
+	classes = unit_class_names()
+
+	fig = Figure(constrained_layout=True, figsize=(4, 3))
+	ax = fig.add_subplot()
+	ax.set_xlim(0, 1)
+	ax.set_ylim(0, 1)
+	ax.set_axis_off()
+
+	ax.text(0.06, 0.97, "Unit", fontsize=10, fontweight="bold", va="top")
+	for index, name in enumerate(classes):
+		y = 0.87 - index * (0.8 / len(classes))
+		marker = CLASS_MARKERS.get(name, DEFAULT_MARKER)
+		ax.scatter(
+			[0.1],
+			[y],
+			marker=marker,
+			s=140,
+			c="#555555",
+			edgecolors="black",
+			linewidths=0.8,
+		)
+		ax.text(0.22, y, name, va="center", ha="left", fontsize=9)
+
+	ax.text(0.62, 0.97, "Team", fontsize=10, fontweight="bold", va="top")
+	for index, (team, color) in enumerate(TEAM_COLORS.items()):
+		y = 0.87 - index * 0.16
+		ax.scatter(
+			[0.66],
+			[y],
+			marker="o",
+			s=140,
+			c=color,
+			edgecolors="black",
+			linewidths=0.8,
+		)
+		ax.text(0.78, y, team, va="center", ha="left", fontsize=9)
+
+	solara.Image(_figure_to_png(fig), width="100%")
+
+
+@solara.component
 def Page():
 	model = solara.use_reactive(solara.use_memo(lambda: SimulationModel(), []))
 	model_parameters = solara.use_reactive(solara.use_memo(default_model_parameters, []))
@@ -197,6 +245,8 @@ def Page():
 					solara.Error(error_message.value)
 			with solara.Card("Information"):
 				ShowSteps(model.value)
+			with solara.Card("Legend"):
+				_LegendView()
 
 		with solara.Column(style={"min-width": "0"}):
 			with solara.Columns([3, 2]):
