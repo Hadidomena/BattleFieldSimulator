@@ -294,14 +294,18 @@ def _ReplayChart(replay: ReplayData, step: int):
 
 	df = replay.model_records
 	if not df.empty:
+		plotted = False
 		if "alive_blue" in df.columns:
 			ax.plot(
 				df["step"], df["alive_blue"], label="Blue", color=TEAM_COLORS["Blue"]
 			)
+			plotted = True
 		if "alive_red" in df.columns:
 			ax.plot(df["step"], df["alive_red"], label="Red", color=TEAM_COLORS["Red"])
+			plotted = True
 		ax.axvline(step, color="gray", linestyle="--", linewidth=1)
-		ax.legend(loc="best")
+		if plotted:
+			ax.legend(loc="best")
 
 	ax.set_xlabel("Step")
 	ax.set_ylabel("Alive")

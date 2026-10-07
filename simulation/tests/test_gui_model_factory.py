@@ -60,6 +60,17 @@ def test_zero_max_steps_means_no_limit() -> None:
 	assert model.max_steps is None
 
 
+def test_scenario_mode_respects_max_steps() -> None:
+	model = SimulationModel(scenario_name=list_scenario_names()[0], max_steps=3)
+
+	for _ in range(10):
+		if model.running:
+			model.step()
+
+	assert model.steps == 3
+	assert not model.running
+
+
 def test_unknown_scenario_raises() -> None:
 	with pytest.raises(ValueError, match="Unknown scenario"):
 		SimulationModel(scenario_name="does_not_exist")
@@ -100,3 +111,8 @@ def test_build_model_returns_simulation_model() -> None:
 	assert isinstance(model, SimulationModel)
 	assert model.alive_count("Blue") == 1
 	assert model.alive_count("Red") == 1
+
+
+def test_simulation_model_missing_map_raises() -> None:
+	with pytest.raises(FileNotFoundError):
+		SimulationModel(map_name="does_not_exist.csv")

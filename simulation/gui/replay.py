@@ -101,9 +101,9 @@ def _load_terrain(scenario: str, run_dir: Path) -> np.ndarray | None:
 		return np.loadtxt(map_file, delimiter=",", dtype=int)
 	try:
 		scenario_def = load_scenario(scenario)
-	except ValueError:
+		return load_board(scenario_def["map"], base_dir=PROJECT_ROOT)
+	except (ValueError, OSError, KeyError):
 		return None
-	return load_board(scenario_def["map"], base_dir=PROJECT_ROOT)
 
 
 def load_run(
@@ -137,11 +137,25 @@ def load_run(
 	)
 
 
+def _next_run_dir(scenario_dir: Path) -> Path:
+	existing = {path.name for path in scenario_dir.glob("run_*") if path.is_dir()}
+	index = 0
+	while f"run_{index:03d}" in existing:
+		index += 1
+	return scenario_dir / f"run_{index:03d}"
+
+
 def record_run(model, label: str | None = None, results_dir: Path = RESULTS_DIR) -> Path:
-	"""Export a live model's telemetry plus its map for later replay."""
-	name = label or f"gui_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-	run_dir = results_dir / name / "run_000"
-	run_dir.mkdir(parents=True, exist_ok=True)
+	"""Export a live model's telemetry plus its map for later replay.
+
+	Each call gets its own ``run_NNN`` directory, so recording twice (even with
+	the same label) never overwrites a previous run.
+	"""
+	name = label or f"gui_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+	scenario_dir = results_dir / name
+	scenario_dir.mkdir(parents=True, exist_ok=True)
+	run_dir = _next_run_dir(scenario_dir)
+	run_dir.mkdir()
 
 	model.telemetry.export_csv(run_dir)
 	model.telemetry.export_json(run_dir)
