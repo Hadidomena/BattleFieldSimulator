@@ -23,7 +23,8 @@ def _mix(color_a: str, color_b: str, ratio: float) -> tuple[float, float, float]
 
 def agent_portrayal(agent, show_state: bool = False) -> AgentPortrayalStyle:
 	color = team_color(getattr(agent, "team", None))
-	marker = class_marker(type(agent).__name__)
+	class_name = getattr(agent, "agent_class", None) or type(agent).__name__
+	marker = class_marker(class_name)
 
 	hp = getattr(agent, "hp", 0)
 	max_hp = max(1, getattr(agent, "max_hp", 1))

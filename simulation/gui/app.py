@@ -17,6 +17,14 @@ from simulation.gui.model_factory import (
 	unit_class_names,
 )
 from simulation.gui.portrayal import agent_portrayal, draw_terrain
+from simulation.gui.replay import (
+	ReplayData,
+	TerrainModel,
+	list_replay_scenarios,
+	list_runs,
+	load_run,
+	record_run,
+)
 from simulation.gui.theme import (
 	CLASS_MARKERS,
 	DEFAULT_MARKER,
@@ -52,15 +60,17 @@ def _SpaceView(model, show_state: bool):
 	ax = fig.add_subplot()
 
 	draw_terrain(ax, model, include_grid_lines=True)
-	_draw_agents(ax, model, show_state=show_state)
+	_draw_agents(ax, _live_agents(model), show_state=show_state)
 
 	solara.Image(_figure_to_png(fig), width="100%")
 
 
-def _draw_agents(ax, model, show_state: bool = False) -> None:
+def _live_agents(model) -> list:
 	space = getattr(model, "grid", None) or getattr(model, "space", None)
-	agents = list(space.agents)
+	return list(space.agents) if space is not None else []
 
+
+def _draw_agents(ax, agents, show_state: bool = False) -> None:
 	by_zorder: dict[int, list] = {}
 	for agent in agents:
 		style = agent_portrayal(agent, show_state=show_state)
@@ -270,50 +280,226 @@ def _LegendView():
 
 
 @solara.component
+def _ReplayMap(replay: ReplayData, step: int, show_state: bool):
+	fig = Figure(constrained_layout=True, figsize=(6, 6))
+	ax = fig.add_subplot()
+
+	draw_terrain(ax, TerrainModel(replay.terrain), include_grid_lines=True)
+	_draw_agents(ax, replay.agents_at(step), show_state=show_state)
+
+	solara.Image(_figure_to_png(fig), width="100%")
+
+
+@solara.component
+def _ReplayChart(replay: ReplayData, step: int):
+	fig = Figure(constrained_layout=True, figsize=(6, 3))
+	ax = fig.subplots()
+
+	df = replay.model_records
+	if not df.empty:
+		if "alive_blue" in df.columns:
+			ax.plot(
+				df["step"], df["alive_blue"], label="Blue", color=TEAM_COLORS["Blue"]
+			)
+		if "alive_red" in df.columns:
+			ax.plot(df["step"], df["alive_red"], label="Red", color=TEAM_COLORS["Red"])
+		ax.axvline(step, color="gray", linestyle="--", linewidth=1)
+		ax.legend(loc="best")
+
+	ax.set_xlabel("Step")
+	ax.set_ylabel("Alive")
+	return solara.Image(_figure_to_png(fig), width="100%")
+
+
+@solara.component
+def _ReplayDetails(replay: ReplayData, step: int):
+	record = replay.model_at(step)
+	if record is None:
+		solara.Text("No data for this step.")
+		return
+
+	solara.Markdown(
+		f"**Step {step}**\n\n"
+		f"- Alive: Blue {int(record.get('alive_blue', 0))} / "
+		f"Red {int(record.get('alive_red', 0))}\n"
+		f"- Kills: Blue {int(record.get('kills_blue', 0))} / "
+		f"Red {int(record.get('kills_red', 0))}\n"
+		f"- Damage: Blue {int(record.get('damage_blue', 0))} / "
+		f"Red {int(record.get('damage_red', 0))}"
+	)
+
+
+@solara.component
+def _LiveSidebar(model, model_parameters, error_message, show_states, on_record):
+	with solara.Card("Controls"):
+		ModelController(
+			model,
+			model_parameters=model_parameters,
+			play_interval=solara.use_reactive(250),
+			render_interval=solara.use_reactive(1),
+			use_threads=solara.use_reactive(False),
+		)
+		solara.Checkbox(
+			label="Show AI state outline",
+			value=show_states,
+			on_value=show_states.set,
+		)
+		solara.Button("Record run", on_click=on_record)
+	with solara.Card("Model Parameters"):
+		_ConfigEditor(model, model_parameters, error_message)
+		if error_message.value:
+			solara.Error(error_message.value)
+	with solara.Card("Information"):
+		ShowSteps(model.value)
+
+
+@solara.component
+def _ReplaySidebar(
+	scenarios,
+	selected_scenario,
+	runs,
+	selected_run,
+	replay,
+	step,
+	on_scenario,
+	on_run,
+	on_step,
+):
+	with solara.Card("Replay"):
+		if not scenarios:
+			solara.Info(
+				"No telemetry found. Run a scenario, or use 'Record run' "
+				"in the Live view."
+			)
+			return
+		solara.Select(
+			label="Scenario",
+			value=selected_scenario,
+			values=scenarios,
+			on_value=on_scenario,
+		)
+		if runs:
+			solara.Select(
+				label="Run",
+				value=selected_run,
+				values=runs,
+				on_value=on_run,
+			)
+		if replay is not None:
+			solara.SliderInt(
+				label="Step",
+				value=step,
+				min=0,
+				max=replay.max_step,
+				on_value=on_step,
+			)
+			solara.Text(f"{len(replay.agents_at(step))} units on the field")
+
+
+@solara.component
+def _LiveMain(model, show_states):
+	with solara.Columns([3, 2]):
+		with solara.Card("Battlefield"):
+			_SpaceView(model, show_states)
+		with solara.Column():
+			with solara.Card("Population"):
+				_plot_component(["Alive_Blue", "Alive_Red"])(model)
+			with solara.Card("Damage"):
+				_plot_component(["Damage_Blue", "Damage_Red"])(model)
+			with solara.Card("Destroyed Obstacles"):
+				_plot_component(["Destroyed_Obstacles"])(model)
+			with solara.Card("AI States"):
+				_StateChart(model)
+
+
+@solara.component
+def _ReplayMain(replay, step, show_states):
+	with solara.Columns([3, 2]):
+		with solara.Card("Replay battlefield"):
+			_ReplayMap(replay, step, show_states)
+		with solara.Column():
+			with solara.Card("Population"):
+				_ReplayChart(replay, step)
+			with solara.Card("Step details"):
+				_ReplayDetails(replay, step)
+
+
+@solara.component
 def Page():
 	model = solara.use_reactive(solara.use_memo(lambda: SimulationModel(), []))
 	model_parameters = solara.use_reactive(solara.use_memo(default_model_parameters, []))
 	error_message = solara.use_reactive(None)
 	show_states = solara.use_reactive(True)
+	view = solara.use_reactive("Live")
+	replay_scenario = solara.use_reactive(None)
+	replay_run = solara.use_reactive(None)
+	replay_step = solara.use_reactive(0)
+	record_counter = solara.use_reactive(0)
+
+	_ = record_counter.value
+	scenarios = list_replay_scenarios()
+	selected_scenario = (
+		replay_scenario.value
+		if replay_scenario.value in scenarios
+		else (scenarios[0] if scenarios else None)
+	)
+	runs = list_runs(selected_scenario) if selected_scenario else []
+	selected_run = (
+		replay_run.value if replay_run.value in runs else (runs[0] if runs else None)
+	)
+	replay = solara.use_memo(
+		lambda: (
+			load_run(selected_scenario, selected_run)
+			if selected_scenario and selected_run
+			else None
+		),
+		[selected_scenario, selected_run, record_counter.value],
+	)
+	step = min(replay_step.value, replay.max_step) if replay is not None else 0
+
+	def select_scenario(value):
+		replay_scenario.set(value)
+		replay_run.set(None)
+		replay_step.set(0)
+
+	def select_run(value):
+		replay_run.set(value)
+		replay_step.set(0)
+
+	def record():
+		record_run(model.value)
+		record_counter.set(record_counter.value + 1)
 
 	with solara.AppBar():
 		solara.AppBarTitle("Battlefield Simulator")
+		solara.ToggleButtonsSingle(
+			value=view, values=["Live", "Replay"], on_value=view.set
+		)
 		solara.lab.ThemeToggle()
 
 	with solara.Columns([0, 1], style={"width": "100%", "padding": "12px"}):
 		with solara.Column(style={"min-width": "340px", "max-width": "400px"}):
-			with solara.Card("Controls"):
-				ModelController(
-					model,
-					model_parameters=model_parameters,
-					play_interval=solara.use_reactive(250),
-					render_interval=solara.use_reactive(1),
-					use_threads=solara.use_reactive(False),
+			if view.value == "Live":
+				_LiveSidebar(model, model_parameters, error_message, show_states, record)
+			else:
+				_ReplaySidebar(
+					scenarios,
+					selected_scenario,
+					runs,
+					selected_run,
+					replay,
+					step,
+					select_scenario,
+					select_run,
+					replay_step.set,
 				)
-				solara.Checkbox(
-					label="Show AI state outline",
-					value=show_states,
-					on_value=show_states.set,
-				)
-			with solara.Card("Model Parameters"):
-				_ConfigEditor(model, model_parameters, error_message)
-				if error_message.value:
-					solara.Error(error_message.value)
-			with solara.Card("Information"):
-				ShowSteps(model.value)
 			with solara.Card("Legend"):
 				_LegendView()
 
 		with solara.Column(style={"min-width": "0"}):
-			with solara.Columns([3, 2]):
-				with solara.Card("Battlefield"):
-					_SpaceView(model.value, show_states.value)
-				with solara.Column():
-					with solara.Card("Population"):
-						_plot_component(["Alive_Blue", "Alive_Red"])(model.value)
-					with solara.Card("Damage"):
-						_plot_component(["Damage_Blue", "Damage_Red"])(model.value)
-					with solara.Card("Destroyed Obstacles"):
-						_plot_component(["Destroyed_Obstacles"])(model.value)
-					with solara.Card("AI States"):
-						_StateChart(model.value)
+			if view.value == "Live":
+				_LiveMain(model.value, show_states.value)
+			elif replay is None:
+				solara.Info("Select a run to replay.")
+			else:
+				_ReplayMain(replay, step, show_states.value)

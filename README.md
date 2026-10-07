@@ -71,6 +71,11 @@ panel lets you configure the run: choose a preset scenario, or pick a map plus
 per-team unit class and count, set a seed, and cap the number of steps.
 Changing a setting rebuilds the simulation immediately.
 
+Use **Record run** to save the current live run's telemetry, then switch to the
+**Replay** view to scrub through saved runs (from `run_scenarios.py` or recorded
+from the GUI): pick a scenario/run, drag the step slider, and inspect the
+reconstructed battlefield, population chart, and per-step statistics.
+
 ### Run experimental scenarios
 
 ```bash

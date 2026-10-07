@@ -24,6 +24,7 @@ class BattlefieldModel(mesa.Model):
 		self.width = board.shape[1]
 		self.height = board.shape[0]
 		self.terrain = board.copy()
+		self.initial_terrain = board.copy()
 		self.blue_unit_class = blue_unit_class
 		self.red_unit_class = red_unit_class
 		self.blue_unit_kwargs = blue_unit_kwargs or {}
