@@ -34,13 +34,8 @@ from simulation.gui.theme import (
 )
 from simulation.scenarios import list_map_names, list_scenario_names
 
-AGENT_STYLE_FIELDS = {
-	"size": 50,
-	"marker": "o",
-	"zorder": 1,
-	"alpha": 1.0,
-	"linewidths": 1.0,
-}
+DEFAULT_AGENT_SIZE = 50
+DEFAULT_AGENT_MARKER = "o"
 
 
 def _figure_to_png(fig: Figure) -> bytes:
@@ -83,9 +78,9 @@ def _draw_agents(ax, agents, show_state: bool = False) -> None:
 		xs = [s.x for s in styles]
 		ys = [s.y for s in styles]
 		colors = [s.color for s in styles]
-		sizes = [s.size or AGENT_STYLE_FIELDS["size"] for s in styles]
+		sizes = [s.size or DEFAULT_AGENT_SIZE for s in styles]
 		alphas = [s.alpha for s in styles]
-		markers = [s.marker or AGENT_STYLE_FIELDS["marker"] for s in styles]
+		markers = [s.marker or DEFAULT_AGENT_MARKER for s in styles]
 		edges = [s.edgecolors or "black" for s in styles]
 		widths = [s.linewidths if s.linewidths is not None else 0.8 for s in styles]
 
@@ -146,11 +141,13 @@ def _plot_component(measures: str | list[str]) -> Callable:
 		fig = Figure(constrained_layout=True, figsize=(6, 3))
 		ax = fig.subplots()
 		df = model.datacollector.get_model_vars_dataframe()
+		plotted = False
 		for measure in measures_list:
 			if measure in df.columns:
 				ax.plot(df[measure], label=measure)
+				plotted = True
 		ax.set_xlabel("Step")
-		if measures_list:
+		if plotted:
 			ax.legend(loc="best")
 		return solara.Image(_figure_to_png(fig), width="100%")
 

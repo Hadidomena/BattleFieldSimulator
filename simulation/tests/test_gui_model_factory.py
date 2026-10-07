@@ -2,6 +2,10 @@ import pytest
 
 from simulation.gui.model_factory import (
 	SimulationModel,
+	_parse_seed,
+	_resolve_map,
+	_resolve_unit_class,
+	build_model,
 	default_model_parameters,
 	unit_class_names,
 )
@@ -66,3 +70,33 @@ def test_unit_class_names_lists_all_classes() -> None:
 
 	assert "InfantrySquad" in names
 	assert "MainBattleTank" in names
+
+
+def test_parse_seed_variants() -> None:
+	assert _parse_seed("42") == 42
+	assert _parse_seed(7) == 7
+	assert _parse_seed("") is None
+	assert _parse_seed(None) is None
+	assert _parse_seed("not-a-number") is None
+
+
+def test_resolve_map_by_name_and_missing() -> None:
+	path = _resolve_map("open_field_10x10.csv")
+
+	assert path.is_file()
+
+	with pytest.raises(FileNotFoundError):
+		_resolve_map("nope.csv")
+
+
+def test_resolve_unit_class_unknown_raises() -> None:
+	with pytest.raises(ValueError, match="Unknown unit class"):
+		_resolve_unit_class("SpaceMarine")
+
+
+def test_build_model_returns_simulation_model() -> None:
+	model = build_model(blue_count=1, red_count=1)
+
+	assert isinstance(model, SimulationModel)
+	assert model.alive_count("Blue") == 1
+	assert model.alive_count("Red") == 1

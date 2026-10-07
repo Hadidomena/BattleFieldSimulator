@@ -38,6 +38,13 @@ Modeled using finite-state machine utilizing states:
 - 10 pre-built scenarios across 5 maps testing: unit balance, cover, detection, chokepoints, numerical superiority, mobility vs durability, retreat thresholds
 - Automated aggregation (win rates, KDR, DPS, survival) and telemetry export
 
+### Interactive GUI
+- Browser-based UI built on Mesa's Solara integration
+- Live battlefield with a unit/team/AI-state legend and an optional AI-state outline overlay
+- Live charts: population, damage, destroyed obstacles, AI-state distribution
+- Config editor (scenario, map, unit classes/counts, seed, step cap) that rebuilds instantly
+- Record a live run, then replay saved telemetry with a step scrubber
+
 ## Getting started
 
 ```bash
@@ -122,14 +129,21 @@ simulation/
 ├── agent.py          # CombatAgent and its subclasses
 ├── model.py          # BattlefieldModel (Mesa Model), obstacle HP tracking
 ├── utils.py          # Pathfinding, LoS, cover, hit/damage math, detection
+├── scenarios.py      # Scenario loading + shared model builder
 ├── telemetry.py      # Data recording and CSV/JSON export
 ├── analysis.py       # ScenarioAnalyzer + ScenarioExplorer (charts)
+├── gui/              # Solara GUI
+│   ├── app.py             # Page layout: live view, charts, replay view
+│   ├── model_factory.py   # SimulationModel + config-editor parameters
+│   ├── portrayal.py       # Agent/terrain drawing for the map
+│   ├── theme.py           # Colors/markers for teams, classes, AI states
+│   └── replay.py          # Telemetry loading/recording for the replay view
 └── tests/            # Unit tests (pytest)
 
 data/scenarios/
 ├── maps/             # CSV map grids (0=open, 1=obstacle)
 ├── scenario_*.json   # Experiment definitions
-├── results/          # Telemetry output (per run)
+├── results/          # Telemetry output (per run, used by the replay view)
 └── analysis/         # Generated chart images
 ```
 

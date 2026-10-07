@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from matplotlib import colors as mcolors
 from matplotlib.patches import Rectangle
-from mesa.visualization.components import AgentPortrayalStyle
 
 from simulation.gui.theme import (
 	OBSTACLE_DAMAGED_COLOR,
@@ -13,6 +14,9 @@ from simulation.gui.theme import (
 	team_color,
 )
 
+if TYPE_CHECKING:
+	from mesa.visualization.components import AgentPortrayalStyle
+
 
 def _mix(color_a: str, color_b: str, ratio: float) -> tuple[float, float, float]:
 	ratio = max(0.0, min(1.0, ratio))
@@ -22,6 +26,8 @@ def _mix(color_a: str, color_b: str, ratio: float) -> tuple[float, float, float]
 
 
 def agent_portrayal(agent, show_state: bool = False) -> AgentPortrayalStyle:
+	from mesa.visualization.components import AgentPortrayalStyle  # noqa: PLC0415
+
 	color = team_color(getattr(agent, "team", None))
 	class_name = getattr(agent, "agent_class", None) or type(agent).__name__
 	marker = class_marker(class_name)

@@ -63,5 +63,17 @@ def test_load_run_missing_returns_none(tmp_path: Path) -> None:
 	assert load_run("missing", "run_000", tmp_path) is None
 
 
+def test_load_run_without_map_returns_none(tmp_path: Path) -> None:
+	run_dir = tmp_path / "no_map" / "run_000"
+	run_dir.mkdir(parents=True)
+	(run_dir / "agent_telemetry.csv").write_text("step,unique_id\n0,1\n")
+
+	assert load_run("no_map", "run_000", tmp_path) is None
+
+
+def test_list_runs_missing_scenario(tmp_path: Path) -> None:
+	assert list_runs("nope", tmp_path) == []
+
+
 def test_list_replay_scenarios_empty_dir(tmp_path: Path) -> None:
 	assert list_replay_scenarios(tmp_path) == []
