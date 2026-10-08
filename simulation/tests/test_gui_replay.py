@@ -142,6 +142,34 @@ def test_load_run_without_telemetry_returns_none(tmp_path: Path) -> None:
 	assert load_run("empty", "run_000", tmp_path) is None
 
 
+def test_load_run_steps_include_trailing_model_only_step(tmp_path: Path) -> None:
+	run_dir = tmp_path / "mutual" / "run_000"
+	run_dir.mkdir(parents=True)
+	np.savetxt(run_dir / "map.csv", np.zeros((4, 4), dtype=int), delimiter=",", fmt="%d")
+	(run_dir / "agent_telemetry.csv").write_text(
+		"step,unique_id,agent_class,team,pos_x,pos_y,hp,max_hp,ai_state\n"
+		"0,1,InfantrySquad,Blue,1,1,100,100,advance\n"
+		"1,1,InfantrySquad,Blue,2,2,0,100,advance\n"
+	)
+	(run_dir / "model_telemetry.csv").write_text(
+		"step,alive_blue,alive_red\n0,1,1\n1,1,0\n2,0,0\n"
+	)
+
+	replay = load_run("mutual", "run_000", tmp_path)
+
+	assert replay is not None
+	assert replay.steps == [0, 1, 2]
+	assert replay.max_step == 2
+
+
+def test_list_replay_scenarios_ignores_run_files(tmp_path: Path) -> None:
+	scenario_dir = tmp_path / "not_a_scenario"
+	scenario_dir.mkdir()
+	(scenario_dir / "run_000").write_text("not a directory")
+
+	assert list_replay_scenarios(tmp_path) == []
+
+
 def test_agents_at_skips_rows_without_position() -> None:
 	agent_records = pd.DataFrame(
 		[

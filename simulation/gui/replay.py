@@ -78,7 +78,7 @@ def list_replay_scenarios(results_dir: Path = RESULTS_DIR) -> list[str]:
 	return [
 		child.name
 		for child in sorted(results_dir.iterdir())
-		if child.is_dir() and any(child.glob("run_*"))
+		if child.is_dir() and any(path.is_dir() for path in child.glob("run_*"))
 	]
 
 
@@ -123,8 +123,11 @@ def load_run(
 	if terrain is None:
 		return None
 
-	step_source = agent_records if not agent_records.empty else model_records
-	steps = sorted(int(step) for step in step_source["step"].unique().tolist())
+	step_values: set[int] = set()
+	for frame in (agent_records, model_records):
+		if not frame.empty and "step" in frame.columns:
+			step_values.update(int(step) for step in frame["step"].tolist())
+	steps = sorted(step_values)
 
 	return ReplayData(
 		scenario=scenario,
@@ -160,7 +163,9 @@ def record_run(model, label: str | None = None, results_dir: Path = RESULTS_DIR)
 	model.telemetry.export_csv(run_dir)
 	model.telemetry.export_json(run_dir)
 
-	terrain = getattr(model, "initial_terrain", model.terrain)
+	terrain = getattr(model, "initial_terrain", None)
+	if terrain is None:
+		terrain = model.terrain
 	np.savetxt(run_dir / "map.csv", terrain, delimiter=",", fmt="%d")
 
 	return run_dir

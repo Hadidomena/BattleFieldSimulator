@@ -91,3 +91,33 @@ def test_replay_details_renders() -> None:
 	widget, rc = reacton.render(app._ReplayDetails(_replay(), 0))
 	assert widget is not None
 	rc.close()
+
+
+def test_replay_details_handles_nan_values() -> None:
+	replay = _replay()
+	replay.model_records = pd.DataFrame(
+		[
+			{
+				"step": 0,
+				"alive_blue": 1,
+				"alive_red": float("nan"),
+				"kills_blue": 0,
+				"kills_red": 0,
+				"damage_blue": 0,
+				"damage_red": 0,
+			}
+		]
+	)
+
+	widget, rc = reacton.render(app._ReplayDetails(replay, 0))
+
+	assert widget is not None
+	rc.close()
+
+
+def test_safe_int_handles_bad_values() -> None:
+	assert app._safe_int(None) == 0
+	assert app._safe_int(float("nan")) == 0
+	assert app._safe_int("5") == 5
+	assert app._safe_int("nope") == 0
+	assert app._safe_int(3.9) == 3

@@ -47,6 +47,17 @@ def _figure_to_png(fig: Figure) -> bytes:
 	return buf.getvalue()
 
 
+def _safe_int(value) -> int:
+	"""Coerce a telemetry cell to int, treating None/NaN/non-numeric as 0."""
+	try:
+		number = float(value)
+	except (TypeError, ValueError):
+		return 0
+	if number != number:  # NaN
+		return 0
+	return int(number)
+
+
 @solara.component
 def _SpaceView(model, show_state: bool):
 	update_counter.get()
@@ -321,12 +332,12 @@ def _ReplayDetails(replay: ReplayData, step: int):
 
 	solara.Markdown(
 		f"**Step {step}**\n\n"
-		f"- Alive: Blue {int(record.get('alive_blue', 0))} / "
-		f"Red {int(record.get('alive_red', 0))}\n"
-		f"- Kills: Blue {int(record.get('kills_blue', 0))} / "
-		f"Red {int(record.get('kills_red', 0))}\n"
-		f"- Damage: Blue {int(record.get('damage_blue', 0))} / "
-		f"Red {int(record.get('damage_red', 0))}"
+		f"- Alive: Blue {_safe_int(record.get('alive_blue'))} / "
+		f"Red {_safe_int(record.get('alive_red'))}\n"
+		f"- Kills: Blue {_safe_int(record.get('kills_blue'))} / "
+		f"Red {_safe_int(record.get('kills_red'))}\n"
+		f"- Damage: Blue {_safe_int(record.get('damage_blue'))} / "
+		f"Red {_safe_int(record.get('damage_red'))}"
 	)
 
 
