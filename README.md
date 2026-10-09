@@ -13,7 +13,7 @@ A meso-scale tactical combat simulator built with [Mesa](https://mesa.readthedoc
 ### Tactical AI
 Modeled using finite-state machine utilizing states:
 - **advance** — move toward enemies using A*/Dijkstra pathfinding
-- **engage** — attack visible enemies in range; move + attack otherwise
+- **engage** — attack visible enemies in range while repositioning to nearby cover that keeps the target in range and in line of sight; re-seeks cover when the current cover is destroyed
 - **retreat** — scored-cell selection (distance, LoS breaks, cover, group cohesion), covering fire, group coordination, non-abandonment check
 - **patrol** — follow a predefined route, engage enemies on sight
 
@@ -38,6 +38,13 @@ Modeled using finite-state machine utilizing states:
 - 10 pre-built scenarios across 5 maps testing: unit balance, cover, detection, chokepoints, numerical superiority, mobility vs durability, retreat thresholds
 - Automated aggregation (win rates, KDR, DPS, survival) and telemetry export
 
+### Interactive GUI
+- Browser-based UI built on Mesa's Solara integration
+- Live battlefield with a unit/team/AI-state legend and an optional AI-state outline overlay
+- Live charts: population, damage, destroyed obstacles, AI-state distribution
+- Config editor (scenario, map, unit classes/counts, seed, step cap) that rebuilds instantly
+- Record a live run, then replay saved telemetry with a step scrubber
+
 ## Getting started
 
 ```bash
@@ -52,6 +59,29 @@ python main.py --steps 20                                # fixed steps
 python main.py --seed 42                                 # reproducible run
 python main.py --map data/example_large_map.csv --blue-units 3 --red-units 3
 ```
+
+### Launch the interactive GUI
+
+An interactive browser-based visualization of a live simulation is built with
+Mesa's Solara integration. The first page load can take a while while the
+Solara server compiles the app.
+
+```bash
+python -m simulation.gui            # launches the Solara server
+```
+
+The GUI shows the battlefield map, live charts (population, damage, destroyed
+obstacles, AI-state distribution), a unit/team/AI-state legend, and playback
+controls (play/pause, step, reset). An optional overlay outlines each unit by
+its current AI state (advance/engage/retreat/patrol). The **Model Parameters**
+panel lets you configure the run: choose a preset scenario, or pick a map plus
+per-team unit class and count, set a seed, and cap the number of steps.
+Changing a setting rebuilds the simulation immediately.
+
+Use **Record run** to save the current live run's telemetry, then switch to the
+**Replay** view to scrub through saved runs (from `run_scenarios.py` or recorded
+from the GUI): pick a scenario/run, drag the step slider, and inspect the
+reconstructed battlefield, population chart, and per-step statistics.
 
 ### Run experimental scenarios
 
@@ -99,14 +129,21 @@ simulation/
 ├── agent.py          # CombatAgent and its subclasses
 ├── model.py          # BattlefieldModel (Mesa Model), obstacle HP tracking
 ├── utils.py          # Pathfinding, LoS, cover, hit/damage math, detection
+├── scenarios.py      # Scenario loading + shared model builder
 ├── telemetry.py      # Data recording and CSV/JSON export
 ├── analysis.py       # ScenarioAnalyzer + ScenarioExplorer (charts)
+├── gui/              # Solara GUI
+│   ├── app.py             # Page layout: live view, charts, replay view
+│   ├── model_factory.py   # SimulationModel + config-editor parameters
+│   ├── portrayal.py       # Agent/terrain drawing for the map
+│   ├── theme.py           # Colors/markers for teams, classes, AI states
+│   └── replay.py          # Telemetry loading/recording for the replay view
 └── tests/            # Unit tests (pytest)
 
 data/scenarios/
 ├── maps/             # CSV map grids (0=open, 1=obstacle)
 ├── scenario_*.json   # Experiment definitions
-├── results/          # Telemetry output (per run)
+├── results/          # Telemetry output (per run, used by the replay view)
 └── analysis/         # Generated chart images
 ```
 

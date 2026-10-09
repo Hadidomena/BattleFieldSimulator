@@ -26,6 +26,7 @@ class CombatAgent(mesa.Agent):
 	retreat_weight_cover = 8.0
 	retreat_weight_allies = 3.0
 	retreat_weight_cohesion = 5.0
+	engage_cover_threshold = 0.05
 
 	def __init__(
 		self,
@@ -82,11 +83,13 @@ class CombatAgent(mesa.Agent):
 
 		if self.ai_state == "retreat":
 			self.retreat(visible_before_move)
-		elif (
-			self.ai_state == "engage"
-			and self._pick_attack_target(visible_before_move) is not None
-		):
-			self.attack_closest_target(visible_before_move)
+		elif self.ai_state == "engage":
+			target = self._pick_attack_target(visible_before_move)
+			if target is not None:
+				self.engage(target)
+			else:
+				self.move()
+				self.attack_closest_target(self.get_visible_enemies())
 		else:
 			if self.ai_state == "patrol":
 				self.patrol_step()
@@ -270,6 +273,8 @@ class CombatAgent(mesa.Agent):
 		for candidate in iter_walkable_cells(self.pos, search_radius, terrain):
 			if candidate not in reachable:
 				continue
+			if not self._is_cell_free(candidate):
+				continue
 
 			score = self._score_retreat_cell(
 				candidate,
@@ -325,6 +330,61 @@ class CombatAgent(mesa.Agent):
 		if target is None:
 			return False
 		return self.attack(target)
+
+	def engage(self, target: "CombatAgent") -> bool:
+		"""Engage a target, repositioning to nearby cover when beneficial.
+
+		Units no longer stand in the open while trading fire: if a reachable
+		cell exists that keeps the target in range and line of sight but offers
+		meaningfully better directional cover, the unit moves there first and
+		then fires. Because cover is read from the live terrain, units seek new
+		cover once their current cover has been destroyed.
+		"""
+		cover_cell = self._best_cover_cell(target)
+		if cover_cell is not None:
+			terrain = self.model.terrain
+			path = find_path(
+				start=self.pos,
+				goal=cover_cell,
+				terrain=terrain,
+				algorithm=self.navigation_algorithm,
+				allow_diagonal=self.allow_diagonal_navigation,
+			)
+			if len(path) > 1:
+				self._advance_along_path(path)
+		return self.attack(target)
+
+	def _best_cover_cell(self, target: "CombatAgent") -> tuple[int, int] | None:
+		terrain = getattr(self.model, "terrain", None)
+		if not isinstance(terrain, np.ndarray) or self.pos is None or target.pos is None:
+			return None
+
+		current_cover = (
+			directional_cover_ratio(self.pos, target.pos, terrain)
+			* self.cover_multiplier
+		)
+
+		best_cell: tuple[int, int] | None = None
+		best_cover = current_cover + self.engage_cover_threshold
+		search_radius = max(2, self.mobility + 1)
+
+		for candidate in iter_walkable_cells(self.pos, search_radius, terrain):
+			if not self._is_cell_free(candidate):
+				continue
+			if euclidean_distance(candidate, target.pos) > self.attack_range:
+				continue
+			if not has_line_of_sight(candidate, target.pos, terrain):
+				continue
+
+			cover = (
+				directional_cover_ratio(candidate, target.pos, terrain)
+				* self.cover_multiplier
+			)
+			if cover > best_cover:
+				best_cover = cover
+				best_cell = candidate
+
+		return best_cell
 
 	def attack(
 		self,
@@ -519,9 +579,13 @@ class CombatAgent(mesa.Agent):
 
 		terrain = getattr(self.model, "terrain", None)
 		if isinstance(terrain, np.ndarray):
-			valid_steps = [pos for pos in possible_steps if terrain[pos[1], pos[0]] != 1]
+			valid_steps = [
+				pos
+				for pos in possible_steps
+				if terrain[pos[1], pos[0]] != 1 and self._is_cell_free(pos)
+			]
 		else:
-			valid_steps = possible_steps
+			valid_steps = [pos for pos in possible_steps if self._is_cell_free(pos)]
 
 		if valid_steps:
 			old_position = self.pos
@@ -532,10 +596,38 @@ class CombatAgent(mesa.Agent):
 			if (dx, dy) != (0, 0):
 				self.facing_direction = (dx, dy)
 
+	def _is_cell_free(self, position: tuple[int, int]) -> bool:
+		"""Return True if no other living agent occupies ``position``."""
+		grid = getattr(self.model, "grid", None)
+		if grid is None or position is None:
+			return True
+		try:
+			contents = grid.get_cell_list_contents([position])
+		except (TypeError, AttributeError):
+			return True
+		for agent in contents:
+			if agent is not self and getattr(agent, "hp", 1) > 0:
+				return False
+		return True
+
 	def _advance_along_path(self, path: list[tuple[int, int]]) -> None:
-		step_index = min(self.mobility, len(path) - 1)
 		old_position = self.pos
-		new_position = path[step_index]
+		if old_position is None:
+			return
+
+		max_index = min(self.mobility, len(path) - 1)
+		new_position = old_position
+		step_index = 1
+		while step_index <= max_index:
+			candidate = path[step_index]
+			if not self._is_cell_free(candidate):
+				break
+			new_position = candidate
+			step_index += 1
+
+		if new_position == old_position:
+			return
+
 		self.model.grid.move_agent(self, new_position)
 		self.current_path = path
 

@@ -2,6 +2,9 @@ mesa
 matplotlib
 numpy
 pandas
+solara
+altair
+networkx
 ruff
 pytest
 pytest-cov
