@@ -453,6 +453,37 @@ def test_destructible_cover_obstacle_destroyed_by_fire() -> None:
 	assert model.obstacle_hp[4, 3] < 20.0, "Obstacle should take splash damage"
 
 
+def test_obstacle_splash_is_independent_of_defender_armor() -> None:
+	def splash_for_armor(armor: float) -> tuple[float, int]:
+		board = np.zeros((6, 6), dtype=int)
+		board[3, 4] = 1
+		model = BattlefieldModel(board, obstacle_max_hp=50.0)
+		blue = _agent_by_team(model, "Blue")
+		red = _agent_by_team(model, "Red")
+
+		model.grid.move_agent(blue, (3, 1))
+		model.grid.move_agent(red, (3, 3))
+		red.hp = 1000
+		red.armor = armor
+		red.facing_direction = (-1, 0)
+
+		blue.attack_range = 5.0
+		blue.accuracy = 2.0
+		blue.firepower = 30
+
+		red.hp = 1000
+		blue.attack(red)
+
+		return model.obstacle_hp[3, 4], red.last_damage_taken
+
+	low_armor_splash, low_armor_damage = splash_for_armor(0.10)
+	high_armor_splash, high_armor_damage = splash_for_armor(0.90)
+
+	assert low_armor_splash == high_armor_splash
+	assert low_armor_splash < 50.0
+	assert high_armor_damage < low_armor_damage
+
+
 def test_destructible_cover_terrain_becomes_walkable() -> None:
 	board = np.zeros((6, 6), dtype=int)
 	board[4, 2] = 1

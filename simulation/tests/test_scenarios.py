@@ -77,7 +77,8 @@ def test_default_spawn_points_avoids_obstacles() -> None:
 def test_default_spawn_points_caps_at_available_cells() -> None:
 	board = np.zeros((10, 10), dtype=int)
 
-	positions = default_spawn_points(board, "Blue", 100)
+	with pytest.warns(UserWarning, match="requested Blue spawn points"):
+		positions = default_spawn_points(board, "Blue", 100)
 
 	assert 0 < len(positions) < 100
 	assert len(set(positions)) == len(positions)
