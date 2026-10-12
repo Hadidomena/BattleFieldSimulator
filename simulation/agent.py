@@ -186,19 +186,25 @@ class CombatAgent(mesa.Agent):
 				allies.append(agent)
 		return allies
 
-	def _get_nearby_allies(
-		self, pos: tuple[int, int], radius: float
-	) -> list["CombatAgent"]:
-		return self._allied_agents(pos=pos, radius=radius)
-
 	def _get_ally_positions(self) -> list[tuple[int, int]]:
 		return [agent.pos for agent in self._allied_agents()]
 
-	def _covering_fire(self, visible_enemies: list["CombatAgent"]) -> bool:
-		target = self._pick_attack_target(visible_enemies)
+	def _covering_fire(self) -> bool:
+		target = self._pick_attack_target(self.get_visible_enemies())
 		if target is None:
 			return False
 		return self.attack(target, accuracy_override=self.accuracy * 0.5)
+
+	def _record_shot(self, target: "CombatAgent", hit: bool, damage: int) -> None:
+		if hasattr(self.model, "record_attack"):
+			self.model.record_attack(
+				self.team,
+				hit=hit,
+				damage=damage,
+				attacker_id=self.unique_id,
+				defender_id=target.unique_id,
+				defender_team=target.team,
+			)
 
 	def _score_retreat_cell(
 		self,
@@ -273,7 +279,7 @@ class CombatAgent(mesa.Agent):
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
 			self.move()
-			self._covering_fire(self.get_visible_enemies())
+			self._covering_fire()
 			return
 
 		enemy_positions = [e.pos for e in visible_enemies if e.pos is not None]
@@ -283,7 +289,7 @@ class CombatAgent(mesa.Agent):
 
 		ally_positions = self._get_ally_positions()
 
-		nearby_allies = self._get_nearby_allies(self.pos, self.attack_range * 2)
+		nearby_allies = self._allied_agents(radius=self.attack_range * 2)
 		if len(visible_enemies) > len(nearby_allies) + 1:
 			self.ai_state = "engage"
 			self.attack_closest_target(visible_enemies)
@@ -331,7 +337,7 @@ class CombatAgent(mesa.Agent):
 
 		if best_cell is None:
 			self.move()
-			self._covering_fire(self.get_visible_enemies())
+			self._covering_fire()
 			return
 
 		path = find_path(
@@ -344,12 +350,12 @@ class CombatAgent(mesa.Agent):
 
 		if len(path) <= 1:
 			self._move_randomly()
-			self._covering_fire(self.get_visible_enemies())
+			self._covering_fire()
 			return
 
 		self._advance_along_path(path)
 
-		self._covering_fire(self.get_visible_enemies())
+		self._covering_fire()
 
 	def _is_in_attack_range(self, target: "CombatAgent") -> bool:
 		distance = euclidean_distance(self.pos, target.pos)
@@ -478,15 +484,7 @@ class CombatAgent(mesa.Agent):
 
 		roll = self.random.random()
 		if roll > hit_chance:
-			if hasattr(self.model, "record_attack"):
-				self.model.record_attack(
-					self.team,
-					hit=False,
-					damage=0,
-					attacker_id=self.unique_id,
-					defender_id=target.unique_id,
-					defender_team=target.team,
-				)
+			self._record_shot(target, hit=False, damage=0)
 			self.last_damage_dealt = 0
 			return False
 
@@ -507,15 +505,7 @@ class CombatAgent(mesa.Agent):
 			)
 			self.model.apply_obstacle_damage(target.pos, splash_damage)
 		effective_damage = target.receive_damage(damage, attacker=self)
-		if hasattr(self.model, "record_attack"):
-			self.model.record_attack(
-				self.team,
-				hit=True,
-				damage=effective_damage,
-				attacker_id=self.unique_id,
-				defender_id=target.unique_id,
-				defender_team=target.team,
-			)
+		self._record_shot(target, hit=True, damage=effective_damage)
 		self.last_damage_dealt = effective_damage
 		return True
 
