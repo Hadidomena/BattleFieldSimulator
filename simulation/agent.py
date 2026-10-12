@@ -20,6 +20,10 @@ from simulation.utils import (
 )
 
 
+def _resolve(value, default):
+	return default if value is None else value
+
+
 class CombatAgent(mesa.Agent):
 	retreat_weight_distance = 10.0
 	retreat_weight_los = 5.0
@@ -64,52 +68,32 @@ class CombatAgent(mesa.Agent):
 	) -> None:
 		super().__init__(model)
 		self.team = team
-		self.hp = self.default_hp if hp is None else hp
-		self.firepower = self.default_firepower if firepower is None else firepower
-		self.observation_range = (
-			self.default_observation_range
-			if observation_range is None
-			else observation_range
+		self.hp = _resolve(hp, self.default_hp)
+		self.firepower = _resolve(firepower, self.default_firepower)
+		self.observation_range = _resolve(
+			observation_range, self.default_observation_range
 		)
-		self.attack_range = (
-			self.default_attack_range if attack_range is None else attack_range
+		self.attack_range = _resolve(attack_range, self.default_attack_range)
+		self.view_angle_deg = _resolve(view_angle_deg, self.default_view_angle_deg)
+		self.detection_threshold = _resolve(
+			detection_threshold, self.default_detection_threshold
 		)
-		self.view_angle_deg = (
-			self.default_view_angle_deg if view_angle_deg is None else view_angle_deg
-		)
-		self.detection_threshold = (
-			self.default_detection_threshold
-			if detection_threshold is None
-			else detection_threshold
-		)
-		self.accuracy = self.default_accuracy if accuracy is None else accuracy
-		self.armor = self.default_armor if armor is None else armor
+		self.accuracy = _resolve(accuracy, self.default_accuracy)
+		self.armor = _resolve(armor, self.default_armor)
 		self.facing_direction = tuple(
-			self.default_facing_direction
-			if facing_direction is None
-			else facing_direction
+			_resolve(facing_direction, self.default_facing_direction)
 		)
-		self.mobility = self.default_mobility if mobility is None else mobility
-		self.navigation_algorithm = (
-			self.default_navigation_algorithm
-			if navigation_algorithm is None
-			else navigation_algorithm
+		self.mobility = _resolve(mobility, self.default_mobility)
+		self.navigation_algorithm = _resolve(
+			navigation_algorithm, self.default_navigation_algorithm
 		)
-		self.allow_diagonal_navigation = (
-			self.default_allow_diagonal_navigation
-			if allow_diagonal_navigation is None
-			else allow_diagonal_navigation
+		self.allow_diagonal_navigation = _resolve(
+			allow_diagonal_navigation, self.default_allow_diagonal_navigation
 		)
-		self.retreat_health_ratio = (
-			self.default_retreat_health_ratio
-			if retreat_health_ratio is None
-			else retreat_health_ratio
+		self.retreat_health_ratio = _resolve(
+			retreat_health_ratio, self.default_retreat_health_ratio
 		)
-		self.cover_multiplier = (
-			self.default_cover_multiplier
-			if cover_multiplier is None
-			else cover_multiplier
-		)
+		self.cover_multiplier = _resolve(cover_multiplier, self.default_cover_multiplier)
 		self.last_detection_scores: dict[int, float] = {}
 		self.last_known_enemy_pos: tuple[int, int] | None = None
 		self.current_path: list[tuple[int, int]] = []
