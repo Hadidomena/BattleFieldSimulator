@@ -20,6 +20,10 @@ from simulation.utils import (
 )
 
 
+def _resolve(value, default):
+	return default if value is None else value
+
+
 class CombatAgent(mesa.Agent):
 	retreat_weight_distance = 10.0
 	retreat_weight_los = 5.0
@@ -28,48 +32,75 @@ class CombatAgent(mesa.Agent):
 	retreat_weight_cohesion = 5.0
 	engage_cover_threshold = 0.05
 
+	default_hp = 100
+	default_firepower = 10
+	default_observation_range = 5
+	default_attack_range = 3.0
+	default_view_angle_deg = 120.0
+	default_detection_threshold = 0.15
+	default_accuracy = 0.75
+	default_armor = 0.10
+	default_facing_direction = (0, 1)
+	default_mobility = 2
+	default_navigation_algorithm = "a_star"
+	default_allow_diagonal_navigation = False
+	default_retreat_health_ratio = 0.30
+	default_cover_multiplier = 1.0
+
 	def __init__(
 		self,
 		model: mesa.Model,
 		team: str,
-		hp: int = 100,
-		firepower: int = 10,
-		observation_range: int = 5,
-		attack_range: float = 3.0,
-		view_angle_deg: float = 120.0,
-		detection_threshold: float = 0.15,
-		accuracy: float = 0.75,
-		armor: float = 0.10,
-		facing_direction: tuple[int, int] = (0, 1),
-		mobility: int = 2,
-		navigation_algorithm: str = "a_star",
-		allow_diagonal_navigation: bool = False,
-		retreat_health_ratio: float = 0.30,
-		cover_multiplier: float = 1.0,
+		hp: int | None = None,
+		firepower: int | None = None,
+		observation_range: int | None = None,
+		attack_range: float | None = None,
+		view_angle_deg: float | None = None,
+		detection_threshold: float | None = None,
+		accuracy: float | None = None,
+		armor: float | None = None,
+		facing_direction: tuple[int, int] | None = None,
+		mobility: int | None = None,
+		navigation_algorithm: str | None = None,
+		allow_diagonal_navigation: bool | None = None,
+		retreat_health_ratio: float | None = None,
+		cover_multiplier: float | None = None,
 	) -> None:
 		super().__init__(model)
 		self.team = team
-		self.hp = hp
-		self.firepower = firepower
-		self.observation_range = observation_range
-		self.attack_range = attack_range
-		self.view_angle_deg = view_angle_deg
-		self.detection_threshold = detection_threshold
-		self.accuracy = accuracy
-		self.armor = armor
-		self.facing_direction = tuple(facing_direction)
-		self.mobility = mobility
-		self.navigation_algorithm = navigation_algorithm
-		self.allow_diagonal_navigation = allow_diagonal_navigation
-		self.retreat_health_ratio = retreat_health_ratio
-		self.cover_multiplier = cover_multiplier
+		self.hp = _resolve(hp, self.default_hp)
+		self.firepower = _resolve(firepower, self.default_firepower)
+		self.observation_range = _resolve(
+			observation_range, self.default_observation_range
+		)
+		self.attack_range = _resolve(attack_range, self.default_attack_range)
+		self.view_angle_deg = _resolve(view_angle_deg, self.default_view_angle_deg)
+		self.detection_threshold = _resolve(
+			detection_threshold, self.default_detection_threshold
+		)
+		self.accuracy = _resolve(accuracy, self.default_accuracy)
+		self.armor = _resolve(armor, self.default_armor)
+		self.facing_direction = tuple(
+			_resolve(facing_direction, self.default_facing_direction)
+		)
+		self.mobility = _resolve(mobility, self.default_mobility)
+		self.navigation_algorithm = _resolve(
+			navigation_algorithm, self.default_navigation_algorithm
+		)
+		self.allow_diagonal_navigation = _resolve(
+			allow_diagonal_navigation, self.default_allow_diagonal_navigation
+		)
+		self.retreat_health_ratio = _resolve(
+			retreat_health_ratio, self.default_retreat_health_ratio
+		)
+		self.cover_multiplier = _resolve(cover_multiplier, self.default_cover_multiplier)
 		self.last_detection_scores: dict[int, float] = {}
 		self.last_known_enemy_pos: tuple[int, int] | None = None
 		self.current_path: list[tuple[int, int]] = []
 		self.last_damage_dealt: int = 0
 		self.last_damage_taken: int = 0
 		self._last_attacker_id: int | None = None
-		self.max_hp: int = hp
+		self.max_hp: int = self.hp
 		self.ai_state: str = "advance"
 		self.patrol_route: list[tuple[int, int]] = []
 		self.patrol_index: int = 0
@@ -155,19 +186,25 @@ class CombatAgent(mesa.Agent):
 				allies.append(agent)
 		return allies
 
-	def _get_nearby_allies(
-		self, pos: tuple[int, int], radius: float
-	) -> list["CombatAgent"]:
-		return self._allied_agents(pos=pos, radius=radius)
-
 	def _get_ally_positions(self) -> list[tuple[int, int]]:
 		return [agent.pos for agent in self._allied_agents()]
 
-	def _covering_fire(self, visible_enemies: list["CombatAgent"]) -> bool:
-		target = self._pick_attack_target(visible_enemies)
+	def _covering_fire(self) -> bool:
+		target = self._pick_attack_target(self.get_visible_enemies())
 		if target is None:
 			return False
 		return self.attack(target, accuracy_override=self.accuracy * 0.5)
+
+	def _record_shot(self, target: "CombatAgent", hit: bool, damage: int) -> None:
+		if hasattr(self.model, "record_attack"):
+			self.model.record_attack(
+				self.team,
+				hit=hit,
+				damage=damage,
+				attacker_id=self.unique_id,
+				defender_id=target.unique_id,
+				defender_team=target.team,
+			)
 
 	def _score_retreat_cell(
 		self,
@@ -212,27 +249,37 @@ class CombatAgent(mesa.Agent):
 			+ group_cohesion * self.retreat_weight_cohesion
 		)
 
-	def _reachable_cells(self, terrain: np.ndarray) -> set[tuple[int, int]]:
+	def _reachable_cells(
+		self, terrain: np.ndarray, radius: int | None = None
+	) -> set[tuple[int, int]]:
 		if self.pos is None:
 			return set()
 
-		reachable = {self.pos}
-		frontier = [self.pos]
+		origin = self.pos
+		reachable = {origin}
+		frontier = [origin]
 		while frontier:
 			current = frontier.pop()
 			for neighbor in get_walkable_neighbors(
 				current, terrain, self.allow_diagonal_navigation
 			):
-				if neighbor not in reachable:
-					reachable.add(neighbor)
-					frontier.append(neighbor)
+				if neighbor in reachable:
+					continue
+				if (
+					radius is not None
+					and max(abs(neighbor[0] - origin[0]), abs(neighbor[1] - origin[1]))
+					> radius
+				):
+					continue
+				reachable.add(neighbor)
+				frontier.append(neighbor)
 		return reachable
 
 	def retreat(self, visible_enemies: list["CombatAgent"]) -> None:  # noqa: C901
 		terrain = getattr(self.model, "terrain", None)
 		if not isinstance(terrain, np.ndarray):
 			self.move()
-			self._covering_fire(self.get_visible_enemies())
+			self._covering_fire()
 			return
 
 		enemy_positions = [e.pos for e in visible_enemies if e.pos is not None]
@@ -242,7 +289,7 @@ class CombatAgent(mesa.Agent):
 
 		ally_positions = self._get_ally_positions()
 
-		nearby_allies = self._get_nearby_allies(self.pos, self.attack_range * 2)
+		nearby_allies = self._allied_agents(radius=self.attack_range * 2)
 		if len(visible_enemies) > len(nearby_allies) + 1:
 			self.ai_state = "engage"
 			self.attack_closest_target(visible_enemies)
@@ -269,7 +316,7 @@ class CombatAgent(mesa.Agent):
 		)
 
 		search_radius = max(4, self.mobility + 2)
-		reachable = self._reachable_cells(terrain)
+		reachable = self._reachable_cells(terrain, search_radius)
 		for candidate in iter_walkable_cells(self.pos, search_radius, terrain):
 			if candidate not in reachable:
 				continue
@@ -290,7 +337,7 @@ class CombatAgent(mesa.Agent):
 
 		if best_cell is None:
 			self.move()
-			self._covering_fire(self.get_visible_enemies())
+			self._covering_fire()
 			return
 
 		path = find_path(
@@ -303,12 +350,12 @@ class CombatAgent(mesa.Agent):
 
 		if len(path) <= 1:
 			self._move_randomly()
-			self._covering_fire(self.get_visible_enemies())
+			self._covering_fire()
 			return
 
 		self._advance_along_path(path)
 
-		self._covering_fire(self.get_visible_enemies())
+		self._covering_fire()
 
 	def _is_in_attack_range(self, target: "CombatAgent") -> bool:
 		distance = euclidean_distance(self.pos, target.pos)
@@ -386,6 +433,22 @@ class CombatAgent(mesa.Agent):
 
 		return best_cell
 
+	def _attack_damage(
+		self,
+		distance: float,
+		cover: float,
+		flanking_multiplier: float,
+		armor: float,
+	) -> int:
+		return calculate_damage(
+			firepower=self.firepower,
+			distance=distance,
+			attack_range=self.attack_range,
+			cover=cover,
+			armor=armor,
+			flanking_multiplier=flanking_multiplier,
+		)
+
 	def attack(
 		self,
 		target: "CombatAgent",
@@ -421,15 +484,7 @@ class CombatAgent(mesa.Agent):
 
 		roll = self.random.random()
 		if roll > hit_chance:
-			if hasattr(self.model, "record_attack"):
-				self.model.record_attack(
-					self.team,
-					hit=False,
-					damage=0,
-					attacker_id=self.unique_id,
-					defender_id=target.unique_id,
-					defender_team=target.team,
-				)
+			self._record_shot(target, hit=False, damage=0)
 			self.last_damage_dealt = 0
 			return False
 
@@ -442,27 +497,15 @@ class CombatAgent(mesa.Agent):
 		):
 			flanking_multiplier = 1.5
 
-		damage = calculate_damage(
-			firepower=self.firepower,
-			distance=distance,
-			attack_range=self.attack_range,
-			cover=cover,
-			armor=target.armor,
-			flanking_multiplier=flanking_multiplier,
-		)
+		damage = self._attack_damage(distance, cover, flanking_multiplier, target.armor)
 
 		if hasattr(self.model, "apply_obstacle_damage") and target.pos is not None:
-			self.model.apply_obstacle_damage(target.pos, damage)
-		effective_damage = target.receive_damage(damage, attacker=self)
-		if hasattr(self.model, "record_attack"):
-			self.model.record_attack(
-				self.team,
-				hit=True,
-				damage=effective_damage,
-				attacker_id=self.unique_id,
-				defender_id=target.unique_id,
-				defender_team=target.team,
+			splash_damage = self._attack_damage(
+				distance, cover, flanking_multiplier, armor=0.0
 			)
+			self.model.apply_obstacle_damage(target.pos, splash_damage)
+		effective_damage = target.receive_damage(damage, attacker=self)
+		self._record_shot(target, hit=True, damage=effective_damage)
 		self.last_damage_dealt = effective_damage
 		return True
 
@@ -672,43 +715,9 @@ class InfantrySquad(CombatAgent):
 	Basic squad
 	"""
 
-	def __init__(
-		self,
-		model: mesa.Model,
-		team: str,
-		hp: int = 100,
-		firepower: int = 10,
-		observation_range: int = 6,
-		attack_range: float = 4.0,
-		view_angle_deg: float = 120.0,
-		detection_threshold: float = 0.15,
-		accuracy: float = 0.70,
-		armor: float = 0.10,
-		facing_direction: tuple[int, int] = (0, 1),
-		mobility: int = 2,
-		navigation_algorithm: str = "a_star",
-		allow_diagonal_navigation: bool = False,
-		retreat_health_ratio: float = 0.30,
-		cover_multiplier: float = 1.0,
-	) -> None:
-		super().__init__(
-			model,
-			team,
-			hp,
-			firepower,
-			observation_range,
-			attack_range,
-			view_angle_deg,
-			detection_threshold,
-			accuracy,
-			armor,
-			facing_direction,
-			mobility,
-			navigation_algorithm,
-			allow_diagonal_navigation,
-			retreat_health_ratio=retreat_health_ratio,
-			cover_multiplier=cover_multiplier,
-		)
+	default_observation_range = 6
+	default_attack_range = 4.0
+	default_accuracy = 0.70
 
 
 class ReconSquad(CombatAgent):
@@ -724,43 +733,16 @@ class ReconSquad(CombatAgent):
 	retreat_weight_allies = 1.0
 	retreat_weight_cohesion = 3.0
 
-	def __init__(
-		self,
-		model: mesa.Model,
-		team: str,
-		hp: int = 80,
-		firepower: int = 8,
-		observation_range: int = 12,
-		attack_range: float = 5.0,
-		view_angle_deg: float = 180.0,
-		detection_threshold: float = 0.08,
-		accuracy: float = 0.75,
-		armor: float = 0.05,
-		facing_direction: tuple[int, int] = (0, 1),
-		mobility: int = 3,
-		navigation_algorithm: str = "a_star",
-		allow_diagonal_navigation: bool = False,
-		retreat_health_ratio: float = 0.40,
-		cover_multiplier: float = 1.0,
-	) -> None:
-		super().__init__(
-			model,
-			team,
-			hp,
-			firepower,
-			observation_range,
-			attack_range,
-			view_angle_deg,
-			detection_threshold,
-			accuracy,
-			armor,
-			facing_direction,
-			mobility,
-			navigation_algorithm,
-			allow_diagonal_navigation,
-			retreat_health_ratio=retreat_health_ratio,
-			cover_multiplier=cover_multiplier,
-		)
+	default_hp = 80
+	default_firepower = 8
+	default_observation_range = 12
+	default_attack_range = 5.0
+	default_view_angle_deg = 180.0
+	default_detection_threshold = 0.08
+	default_accuracy = 0.75
+	default_armor = 0.05
+	default_mobility = 3
+	default_retreat_health_ratio = 0.40
 
 	def _find_cover_waypoint(
 		self, target_pos: tuple[int, int]
@@ -811,43 +793,14 @@ class MechanizedInfantry(CombatAgent):
 	more mobile and durable than InfantrySquad
 	"""
 
-	def __init__(
-		self,
-		model: mesa.Model,
-		team: str,
-		hp: int = 200,
-		firepower: int = 20,
-		observation_range: int = 8,
-		attack_range: float = 8.0,
-		view_angle_deg: float = 120.0,
-		detection_threshold: float = 0.15,
-		accuracy: float = 0.80,
-		armor: float = 0.30,
-		facing_direction: tuple[int, int] = (0, 1),
-		mobility: int = 4,
-		navigation_algorithm: str = "a_star",
-		allow_diagonal_navigation: bool = False,
-		retreat_health_ratio: float = 0.30,
-		cover_multiplier: float = 0.7,
-	) -> None:
-		super().__init__(
-			model,
-			team,
-			hp,
-			firepower,
-			observation_range,
-			attack_range,
-			view_angle_deg,
-			detection_threshold,
-			accuracy,
-			armor,
-			facing_direction,
-			mobility,
-			navigation_algorithm,
-			allow_diagonal_navigation,
-			retreat_health_ratio=retreat_health_ratio,
-			cover_multiplier=cover_multiplier,
-		)
+	default_hp = 200
+	default_firepower = 20
+	default_observation_range = 8
+	default_attack_range = 8.0
+	default_accuracy = 0.80
+	default_armor = 0.30
+	default_mobility = 4
+	default_cover_multiplier = 0.7
 
 
 class MainBattleTank(CombatAgent):
@@ -855,40 +808,12 @@ class MainBattleTank(CombatAgent):
 	Tank, more durable but slower than MechanizedInfantry
 	"""
 
-	def __init__(
-		self,
-		model: mesa.Model,
-		team: str,
-		hp: int = 400,
-		firepower: int = 40,
-		observation_range: int = 5,
-		attack_range: float = 12.0,
-		view_angle_deg: float = 90.0,
-		detection_threshold: float = 0.10,
-		accuracy: float = 0.85,
-		armor: float = 0.60,
-		facing_direction: tuple[int, int] = (0, 1),
-		mobility: int = 3,
-		navigation_algorithm: str = "a_star",
-		allow_diagonal_navigation: bool = False,
-		retreat_health_ratio: float = 0.30,
-		cover_multiplier: float = 0.3,
-	) -> None:
-		super().__init__(
-			model,
-			team,
-			hp,
-			firepower,
-			observation_range,
-			attack_range,
-			view_angle_deg,
-			detection_threshold,
-			accuracy,
-			armor,
-			facing_direction,
-			mobility,
-			navigation_algorithm,
-			allow_diagonal_navigation,
-			retreat_health_ratio=retreat_health_ratio,
-			cover_multiplier=cover_multiplier,
-		)
+	default_hp = 400
+	default_firepower = 40
+	default_attack_range = 12.0
+	default_view_angle_deg = 90.0
+	default_detection_threshold = 0.10
+	default_accuracy = 0.85
+	default_armor = 0.60
+	default_mobility = 3
+	default_cover_multiplier = 0.3

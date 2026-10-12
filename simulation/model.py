@@ -74,11 +74,7 @@ class BattlefieldModel(mesa.Model):
 				if self.obstacle_hp[ny, nx] <= 0:
 					continue
 
-				splash = damage * 0.5
-				if dx == 0 and dy == 0:
-					splash = damage
-
-				self.obstacle_hp[ny, nx] -= splash
+				self.obstacle_hp[ny, nx] -= damage * 0.5
 				if self.obstacle_hp[ny, nx] <= 0:
 					self.terrain[ny, nx] = 0
 					self.obstacle_hp[ny, nx] = 0
@@ -87,6 +83,9 @@ class BattlefieldModel(mesa.Model):
 	def _validate_spawn_points(
 		self, positions: list[tuple[int, int]], team: str
 	) -> None:
+		if len({tuple(position) for position in positions}) != len(positions):
+			raise ValueError(f"{team} spawn points contain duplicates: {positions}")
+
 		for position in positions:
 			x, y = position
 			if not is_position_in_bounds(position, self.terrain):
@@ -103,8 +102,14 @@ class BattlefieldModel(mesa.Model):
 	def _init_board(self, board: np.ndarray) -> None:
 		default_blue_spawn = [(3, 1)]
 		default_red_spawn = [(3, 5)]
-		blue_positions = self.blue_spawn_points or default_blue_spawn
-		red_positions = self.red_spawn_points or default_red_spawn
+		blue_positions = (
+			default_blue_spawn
+			if self.blue_spawn_points is None
+			else self.blue_spawn_points
+		)
+		red_positions = (
+			default_red_spawn if self.red_spawn_points is None else self.red_spawn_points
+		)
 
 		self._validate_spawn_points(blue_positions, "Blue")
 		self._validate_spawn_points(red_positions, "Red")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 
 from simulation.agent import (
@@ -61,6 +62,13 @@ def default_spawn_points(board, team: str, count: int) -> list[tuple[int, int]]:
 				return positions
 			if is_walkable((column, row), board):
 				positions.append((column, row))
+
+	if len(positions) < count:
+		warnings.warn(
+			f"Only {len(positions)} of {count} requested {team} spawn points are "
+			f"available on this map; the simulation will start with fewer units.",
+			stacklevel=2,
+		)
 
 	return positions
 

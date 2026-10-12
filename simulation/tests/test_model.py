@@ -96,6 +96,48 @@ def test_model_collects_combat_stats(basic_board: np.ndarray) -> None:
 	assert model.eliminated_by_team["Red"] == 1
 
 
+def test_empty_spawn_lists_spawn_no_agents(basic_board: np.ndarray) -> None:
+	model = BattlefieldModel(basic_board, blue_spawn_points=[], red_spawn_points=[])
+
+	assert len(model.agents) == 0
+	assert model.alive_count("Blue") == 0
+	assert model.alive_count("Red") == 0
+
+
+def test_none_spawn_points_use_defaults(basic_board: np.ndarray) -> None:
+	model = BattlefieldModel(basic_board, blue_spawn_points=None, red_spawn_points=None)
+
+	assert model.alive_count("Blue") == 1
+	assert model.alive_count("Red") == 1
+
+
+def test_duplicate_spawn_points_raise(basic_board: np.ndarray) -> None:
+	with pytest.raises(ValueError, match="duplicates"):
+		BattlefieldModel(
+			basic_board,
+			blue_spawn_points=[(1, 1), (1, 1)],
+			red_spawn_points=[(8, 8)],
+		)
+
+
+def test_spawn_points_accept_lists(basic_board: np.ndarray) -> None:
+	model = BattlefieldModel(
+		basic_board,
+		blue_spawn_points=[[3, 1], [3, 2]],
+		red_spawn_points=[[3, 5]],
+	)
+
+	assert model.alive_count("Blue") == 2
+	assert model.alive_count("Red") == 1
+
+	with pytest.raises(ValueError, match="duplicates"):
+		BattlefieldModel(
+			basic_board,
+			blue_spawn_points=[[3, 1], [3, 1]],
+			red_spawn_points=[[3, 5]],
+		)
+
+
 def test_alive_count_tracks_eliminations(basic_board: np.ndarray) -> None:
 	model = BattlefieldModel(basic_board)
 	blue = next(a for a in model.agents if a.team == "Blue")

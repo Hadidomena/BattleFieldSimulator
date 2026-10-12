@@ -17,7 +17,7 @@ def load_board(path: str | Path, base_dir: str | Path | None = None) -> np.ndarr
 		raise FileNotFoundError(f"Map file not found: {board_path}")
 	try:
 		return np.loadtxt(board_path, delimiter=",", dtype=int)
-	except Exception:
+	except ValueError:
 		return np.loadtxt(board_path, dtype=int)
 
 
